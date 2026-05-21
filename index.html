@@ -76,6 +76,7 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
   <button onclick="showTab('partners',this)">🤝 שותפויות</button>
   <button onclick="showTab('years',this)">📅 לפי שנה</button>
   <button onclick="showTab('facts',this)">✨ עובדות</button>
+  <button onclick="showTab('games',this)">📋 משחקים</button>
 </nav>
 
 <!-- OVERVIEW TAB -->
@@ -245,6 +246,21 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
   <div class="card" style="margin-top:12px">
     <h3>🔥 יריבויות הכי נפוצות</h3>
     <div id="rivalsList" class="tbl-wrap"></div>
+  </div>
+</div>
+
+<!-- GAMES TAB -->
+<div id="tab-games" class="tab">
+  <div class="card" style="margin-bottom:12px">
+    <h3>📋 המחזור האחרון</h3>
+    <div id="lastRoundDisplay"></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <h3 style="border:none;padding:0;margin:0">🗓️ חיפוש לפי תאריך</h3>
+      <select id="gameDateSelect" onchange="showGameByDate()" style="min-width:160px"></select>
+    </div>
+    <div id="gameDateDisplay"></div>
   </div>
 </div>
 
@@ -880,6 +896,49 @@ function buildFacts(){
     </table>`;
 }
 
+// ============ GAMES TAB ============
+function renderGameCard(g){
+  const winner = g.scoreA>g.scoreB?'A':g.scoreA<g.scoreB?'B':'draw';
+  const colorA = winner==='A'?'#10b981':winner==='B'?'#ef4444':'#fbbf24';
+  const colorB = winner==='B'?'#10b981':winner==='A'?'#ef4444':'#fbbf24';
+  const labelA = winner==='A'?'🏆 ניצחון':winner==='draw'?'🤝 תיקו':'';
+  const labelB = winner==='B'?'🏆 ניצחון':winner==='draw'?'🤝 תיקו':'';
+  const renderTeam=(team,score,color,label)=>`
+    <div style="background:#162030;border-radius:8px;padding:10px;border-top:3px solid ${color}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="color:${color};font-weight:bold;font-size:.85rem">${label}</span>
+        <span style="font-size:2rem;font-weight:bold;color:${color}">${score}</span>
+      </div>
+      ${team.map(p=>`
+        <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #1e293b;font-size:.8rem">
+          <span>${p.name}</span>
+          <span>
+            ${p.goals>0?`<span class="chip chip-orange">⚽ ${p.goals}</span>`:''}
+            ${p.assists>0?`<span class="chip chip-blue">🅰️ ${p.assists}</span>`:''}
+          </span>
+        </div>`).join('')}
+    </div>`;
+  return `
+    <div style="text-align:center;font-size:.82rem;color:#94a3b8;margin-bottom:10px">📅 ${g.date}</div>
+    <div class="grid2">${renderTeam(g.teamA,g.scoreA,colorA,labelA)}${renderTeam(g.teamB,g.scoreB,colorB,labelB)}</div>`;
+}
+
+function buildGamesTab(){
+  const last=GAMES[GAMES.length-1];
+  document.getElementById('lastRoundDisplay').innerHTML=renderGameCard(last);
+  const sel=document.getElementById('gameDateSelect');
+  const dates=[...GAMES].map(g=>g.date).reverse();
+  sel.innerHTML=dates.map(d=>`<option value="${d}">${d}</option>`).join('');
+  showGameByDate();
+}
+
+function showGameByDate(){
+  const date=document.getElementById('gameDateSelect').value;
+  const game=GAMES.slice().reverse().find(g=>g.date===date);
+  if(!game)return;
+  document.getElementById('gameDateDisplay').innerHTML=renderGameCard(game);
+}
+
 // ============ INIT ============
 buildOverview();
 buildLeaderboard();
@@ -888,6 +947,7 @@ buildKosher();
 buildPartners();
 buildYears();
 buildFacts();
+buildGamesTab();
 calcH2H();
 showPartnerStats();
 </script>
