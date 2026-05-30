@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>כדורגל שישי – הזנת משחק</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#0f172a;color:#e2e8f0;direction:rtl;padding:16px;min-height:100vh}
+h1{text-align:center;padding:18px;font-size:1.6rem;background:linear-gradient(135deg,#1e3a8a,#065f46);color:#fbbf24;border-radius:10px;margin-bottom:16px}
+h2{color:#fbbf24;font-size:1rem;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #334155}
+h3{color:#94a3b8;font-size:.88rem;margin-bottom:10px}
+.card{background:#1e293b;border-radius:10px;padding:14px;border:1px solid #334155;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.grid2{grid-template-columns:1fr}}
+input[type=text],input[type=date],input[type=number],select{
+  background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;
+  padding:6px 10px;font-size:.85rem;width:100%}
+input:focus,select:focus{outline:none;border-color:#fbbf24}
+.btn{padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:bold;transition:all .2s}
+.btn-primary{background:#fbbf24;color:#0f172a}.btn-primary:hover{background:#f59e0b}
+.btn-green{background:#059669;color:#fff}.btn-green:hover{background:#047857}
+.btn-gray{background:#334155;color:#e2e8f0}.btn-gray:hover{background:#475569}
+.btn-red{background:none;border:none;color:#475569;cursor:pointer;font-size:1.1rem;padding:2px 6px}
+.btn-red:hover{color:#ef4444}
+.btn-add{width:100%;background:none;border:1px dashed #475569;color:#64748b;border-radius:6px;
+  padding:6px;cursor:pointer;font-size:.82rem;margin-top:6px}
+.btn-add:hover{border-color:#fbbf24;color:#fbbf24}
+.player-row{display:grid;grid-template-columns:1fr 52px 52px 30px;gap:4px;align-items:center;margin-bottom:6px}
+.player-row .p-name.is-new{border-color:#fbbf24;background:#1a1500}
+.new-tag{font-size:.6rem;color:#fbbf24;background:#78350f;border-radius:4px;padding:1px 4px;
+  display:none;margin-top:1px;width:fit-content}
+.player-wrap{display:flex;flex-direction:column}
+.col-labels{display:grid;grid-template-columns:1fr 52px 52px 30px;gap:4px;margin-bottom:4px}
+.col-labels span{font-size:.68rem;color:#64748b;text-align:center}
+.col-labels span:first-child{text-align:right}
+.score-box{text-align:center;padding:16px;background:#0f172a;border-radius:10px;margin:14px 0}
+.score-big{font-size:3rem;font-weight:bold;color:#fbbf24;letter-spacing:6px}
+.score-label{font-size:.75rem;color:#64748b;margin-top:4px}
+.team-a{border-top:3px solid #3b82f6}
+.team-b{border-top:3px solid #ef4444}
+.label-a{color:#3b82f6}
+.label-b{color:#ef4444}
+.recent-row{display:flex;justify-content:space-between;align-items:center;
+  padding:7px 4px;border-bottom:1px solid #334155;font-size:.82rem;flex-wrap:wrap;gap:4px}
+.recent-players{color:#64748b;font-size:.72rem;flex-basis:100%;margin-top:2px}
+.chip{display:inline-block;padding:2px 8px;border-radius:12px;font-size:.7rem}
+.chip-win{background:#064e3b;color:#6ee7b7}
+.chip-loss{background:#7f1d1d;color:#fca5a5}
+.chip-draw{background:#1e3a8a;color:#93c5fd}
+.success-msg{background:#064e3b;border:1px solid #10b981;border-radius:8px;padding:12px;
+  color:#6ee7b7;margin-top:10px;font-size:.88rem;line-height:1.7}
+.success-msg strong{color:#fff}
+.file-btn{display:inline-block;padding:9px 18px;background:#334155;border-radius:8px;
+  cursor:pointer;font-size:.9rem;font-weight:bold;border:1px solid #475569}
+.file-btn:hover{background:#475569}
+#fileInput{display:none}
+.step-num{display:inline-block;background:#fbbf24;color:#0f172a;border-radius:50%;
+  width:22px;height:22px;text-align:center;font-size:.78rem;font-weight:bold;
+  line-height:22px;margin-left:6px}
+</style>
+</head>
+<body>
+<h1>⚽ כדורגל שישי – הזנת משחק</h1>
+
+<!-- STEP 1: Load file -->
+<div class="card">
+  <h2><span class="step-num">1</span> טעינת נתונים</h2>
+  <label class="file-btn" for="fileInput">📂 בחר games_data.json</label>
+  <input type="file" id="fileInput" accept=".json" onchange="loadData(this)">
+  <span id="fileStatus" style="color:#64748b;font-size:.85rem;margin-right:12px">לא נטען קובץ</span>
+</div>
+
+<!-- STEP 2: Enter game -->
+<div class="card" id="entrySection" style="display:none">
+  <h2><span class="step-num">2</span> פרטי המשחק</h2>
+  <div style="margin-bottom:14px;max-width:200px">
+    <div style="font-size:.75rem;color:#64748b;margin-bottom:4px">תאריך המשחק</div>
+    <input type="date" id="gameDate">
+  </div>
+
+  <div class="grid2">
+    <!-- Team A -->
+    <div class="card team-a" style="margin-bottom:0">
+      <h3 class="label-a">קבוצה א׳</h3>
+      <div class="col-labels">
+        <span>שחקן</span><span>שע׳</span><span>בישול</span><span></span>
+      </div>
+      <div id="teamA"></div>
+      <button class="btn-add" onclick="addRow('A')">+ הוסף שחקן</button>
+    </div>
+
+    <!-- Team B -->
+    <div class="card team-b" style="margin-bottom:0">
+      <h3 class="label-b">קבוצה ב׳</h3>
+      <div class="col-labels">
+        <span>שחקן</span><span>שע׳</span><span>בישול</span><span></span>
+      </div>
+      <div id="teamB"></div>
+      <button class="btn-add" onclick="addRow('B')">+ הוסף שחקן</button>
+    </div>
+  </div>
+
+  <!-- Score display -->
+  <div class="score-box">
+    <div class="score-big" id="scoreDisplay">0 – 0</div>
+    <div class="score-label" id="scoreLabel">תיקו</div>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <button class="btn btn-green" onclick="saveGame()">💾 שמור ועדכן</button>
+    <button class="btn btn-gray" onclick="clearForm()">🗑️ נקה טופס</button>
+  </div>
+  <div id="saveStatus"></div>
+</div>
+
+<!-- STEP 3: Recent games -->
+<div class="card" id="recentSection" style="display:none">
+  <h2><span class="step-num">3</span> משחקים אחרונים</h2>
+  <div id="recentGames"></div>
+</div>
+
+<datalist id="playerList"></datalist>
+
+<script>
+let gamesData = [];
+
+// ─── LOAD ────────────────────────────────────────────────────
+function loadData(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      gamesData = JSON.parse(e.target.result);
+    } catch {
+      alert('קובץ JSON שגוי'); return;
+    }
+
+    // knownPlayers = כל השחקנים שאי פעם שיחקו
+    knownPlayers = new Set();
+    gamesData.forEach(g => {
+      [...(g.teamA||[]), ...(g.teamB||[])].forEach(p => { if (p.name) knownPlayers.add(p.name); });
+    });
+    // Autocomplete sorted by frequency in last 150 games
+    const freq = {};
+    gamesData.slice(-150).forEach(g => {
+      [...(g.teamA||[]), ...(g.teamB||[])].forEach(p => {
+        if (p.name) freq[p.name] = (freq[p.name]||0) + 1;
+      });
+    });
+    const players = Object.entries(freq).sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
+    document.getElementById('playerList').innerHTML = players.map(n=>`<option value="${n}">`).join('');
+
+    document.getElementById('fileStatus').textContent = `✓ ${gamesData.length} משחקים נטענו`;
+    document.getElementById('fileStatus').style.color = '#10b981';
+    document.getElementById('entrySection').style.display = 'block';
+    document.getElementById('recentSection').style.display = 'block';
+
+    setDefaultDate();
+    initTeams();
+    showRecent();
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+// ─── DATE ────────────────────────────────────────────────────
+function setDefaultDate() {
+  const d = new Date();
+  const day = d.getDay(); // 0=Sun … 5=Fri … 6=Sat
+  const daysBack = day === 5 ? 0 : day === 6 ? 1 : (day + 2) % 7;
+  d.setDate(d.getDate() - daysBack);
+  document.getElementById('gameDate').value = d.toISOString().split('T')[0];
+}
+
+function toGameDate(iso) {
+  const [y, m, d] = iso.split('-');
+  return `${parseInt(m)}/${parseInt(d)}/${y}`;
+}
+
+// ─── TEAMS ───────────────────────────────────────────────────
+function initTeams() {
+  document.getElementById('teamA').innerHTML = '';
+  document.getElementById('teamB').innerHTML = '';
+  for (let i = 0; i < 4; i++) { addRow('A'); addRow('B'); }
+}
+
+function addRow(team) {
+  const div = document.createElement('div');
+  div.className = 'player-row';
+  div.innerHTML = `
+    <div class="player-wrap">
+      <input type="text" list="playerList" placeholder="שם שחקן (חדש או קיים)" class="p-name" oninput="onNameInput(this)">
+      <span class="new-tag">✦ שחקן חדש</span>
+    </div>
+    <input type="number" min="0" value="0" class="p-goals" oninput="updateScore()">
+    <input type="number" min="0" value="0" class="p-assists">
+    <button class="btn-red" onclick="this.closest('.player-row').remove(); updateScore()">✕</button>`;
+  document.getElementById(`team${team}`).appendChild(div);
+}
+
+function getTeamData(team) {
+  return [...document.querySelectorAll(`#team${team} .player-row`)]
+    .filter(r => r.querySelector('.p-name').value.trim())
+    .map(r => ({
+      name:    r.querySelector('.p-name').value.trim(),
+      goals:   parseInt(r.querySelector('.p-goals').value)   || 0,
+      assists: parseInt(r.querySelector('.p-assists').value) || 0
+    }));
+}
+
+// ─── NEW PLAYER DETECTION ────────────────────────────────────
+let knownPlayers = new Set();
+
+function onNameInput(input) {
+  const name = input.value.trim();
+  const tag  = input.nextElementSibling;
+  const isNew = name.length > 0 && !knownPlayers.has(name);
+  input.classList.toggle('is-new', isNew);
+  tag.style.display = isNew ? 'block' : 'none';
+  updateScore();
+}
+
+// ─── SCORE ───────────────────────────────────────────────────
+function updateScore() {
+  const sA = getTeamData('A').reduce((s,p)=>s+p.goals, 0);
+  const sB = getTeamData('B').reduce((s,p)=>s+p.goals, 0);
+  const el = document.getElementById('scoreDisplay');
+  const lbl = document.getElementById('scoreLabel');
+  el.textContent = `${sA} – ${sB}`;
+  if (sA > sB) { el.style.color='#10b981'; lbl.textContent='ניצחון א׳'; }
+  else if (sB > sA) { el.style.color='#ef4444'; lbl.textContent='ניצחון ב׳'; }
+  else { el.style.color='#fbbf24'; lbl.textContent='תיקו'; }
+}
+
+// ─── SAVE ────────────────────────────────────────────────────
+function saveGame() {
+  const dateVal = document.getElementById('gameDate').value;
+  if (!dateVal) { alert('נא לבחור תאריך'); return; }
+
+  const teamA = getTeamData('A');
+  const teamB = getTeamData('B');
+
+  if (teamA.length < 2) { alert('קבוצה א׳ צריכה לפחות 2 שחקנים'); return; }
+  if (teamB.length < 2) { alert('קבוצה ב׳ צריכה לפחות 2 שחקנים'); return; }
+
+  const scoreA = teamA.reduce((s,p)=>s+p.goals, 0);
+  const scoreB = teamB.reduce((s,p)=>s+p.goals, 0);
+  const gameDate = toGameDate(dateVal);
+
+  if (gamesData.find(g=>g.date===gameDate)) {
+    if (!confirm(`כבר קיים משחק בתאריך ${gameDate}. להוסיף בכל זאת?`)) return;
+  }
+
+  const game = { date: gameDate, teamA, teamB, scoreA, scoreB };
+  gamesData.push(game);
+
+  // Download updated JSON
+  const blob = new Blob([JSON.stringify(gamesData, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'games_data.json'; a.click();
+  URL.revokeObjectURL(url);
+
+  const result = scoreA > scoreB ? 'ניצחון א׳' : scoreB > scoreA ? 'ניצחון ב׳' : 'תיקו';
+  document.getElementById('saveStatus').innerHTML = `
+    <div class="success-msg">
+      ✅ המשחק מ-<strong>${gameDate}</strong> נוסף — <strong>${scoreA}:${scoreB} (${result})</strong><br>
+      הקובץ <strong>games_data.json</strong> ירד לתיקיית Downloads.<br>
+      עכשיו לחץ פעמיים על <strong>update.bat</strong> כדי לפרסם לאתר.
+    </div>`;
+
+  showRecent();
+}
+
+// ─── CLEAR ───────────────────────────────────────────────────
+function clearForm() {
+  initTeams();
+  setDefaultDate();
+  updateScore();
+  document.getElementById('saveStatus').innerHTML = '';
+}
+
+// ─── RECENT ──────────────────────────────────────────────────
+function showRecent() {
+  const recent = gamesData.slice(-6).reverse();
+  document.getElementById('recentGames').innerHTML = recent.map(g => {
+    const sA = g.scoreA ?? g.teamA.reduce((s,p)=>s+p.goals,0);
+    const sB = g.scoreB ?? g.teamB.reduce((s,p)=>s+p.goals,0);
+    const chip = sA > sB
+      ? `<span class="chip chip-win">ניצחון א׳</span>`
+      : sB > sA
+      ? `<span class="chip chip-loss">ניצחון ב׳</span>`
+      : `<span class="chip chip-draw">תיקו</span>`;
+    const topA = g.teamA.filter(p=>p.goals>0).map(p=>`${p.name} ${p.goals}`).join(', ') || '—';
+    const topB = g.teamB.filter(p=>p.goals>0).map(p=>`${p.name} ${p.goals}`).join(', ') || '—';
+    return `<div class="recent-row">
+      <span style="color:#64748b">${g.date}</span>
+      <span style="font-weight:bold;color:#fbbf24">${sA} – ${sB}</span>
+      ${chip}
+      <div class="recent-players">
+        <span style="color:#3b82f6">א׳:</span> ${topA} &nbsp;|&nbsp; <span style="color:#ef4444">ב׳:</span> ${topB}
+      </div>
+    </div>`;
+  }).join('');
+}
+</script>
+</body>
+</html>
