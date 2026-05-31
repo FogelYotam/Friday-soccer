@@ -320,13 +320,13 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
 <div class="subtitle" id="mainSubtitle">טוען נתונים...</div>
 <nav>
   <button class="active" onclick="showTab('overview',this)">🏠 סקירה</button>
+  <button onclick="showTab('lastgame',this)">📋 מחזור אחרון</button>
+  <button onclick="showTab('years',this)">📅 לפי שנה</button>
   <button onclick="showTab('leaderboard',this)">🏆 מצטיינים</button>
   <button onclick="showTab('kosher',this)">💪 כושר</button>
   <button onclick="showTab('h2h',this)">⚔️ ראש בראש</button>
   <button onclick="showTab('partners',this)">🤝 שותפויות</button>
-  <button onclick="showTab('years',this)">📅 לפי שנה</button>
   <button onclick="showTab('facts',this)">✨ עובדות</button>
-  <button onclick="showTab('lastgame',this)">📋 מחזור אחרון</button>
 </nav>
 
 <!-- OVERVIEW TAB -->
@@ -476,9 +476,9 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
       <h3 style="border:none;padding:0;margin:0">📅 סטטיסטיקה לפי שנה</h3>
       <div style="display:flex;gap:8px">
         <select id="yearMinGames" onchange="showYearStats()">
-          <option value="1">כולם</option>
+          <option value="1" selected>כולם</option>
           <option value="5">מינ׳ 5</option>
-          <option value="10" selected>מינ׳ 10</option>
+          <option value="10">מינ׳ 10</option>
         </select>
         <select id="yearSelect" onchange="showYearStats()"></select>
       </div>
