@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>כדורגל שישי – הזנה</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:Arial,sans-serif;background:#0f172a;color:#e2e8f0;direction:rtl;
+  padding:12px;min-height:100vh;max-width:480px;margin:0 auto}
+h1{text-align:center;padding:14px;font-size:1.35rem;
+  background:linear-gradient(135deg,#1e3a8a,#065f46);color:#fbbf24;
+  border-radius:10px;margin-bottom:12px}
+.card{background:#1e293b;border-radius:10px;padding:14px;border:1px solid #334155;margin-bottom:12px}
+h2{color:#fbbf24;font-size:.95rem;margin-bottom:10px;padding-bottom:7px;border-bottom:1px solid #334155}
+h3{font-size:.85rem;margin-bottom:8px}
+label{font-size:.75rem;color:#64748b;display:block;margin-bottom:4px;margin-top:10px}
+input,select{background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:8px;
+  padding:11px 12px;font-size:1rem;width:100%;-webkit-appearance:none;appearance:none}
+input:focus,select:focus{outline:none;border-color:#fbbf24}
+.btn{width:100%;padding:14px;border:none;border-radius:10px;cursor:pointer;
+  font-size:1rem;font-weight:bold;transition:background .15s}
+.btn-gold{background:#fbbf24;color:#0f172a;margin-top:8px}
+.btn-gold:active{background:#f59e0b}
+.btn-green{background:#059669;color:#fff;margin-top:10px}
+.btn-green:active{background:#047857}
+.btn-gray{background:#334155;color:#e2e8f0;margin-top:8px;font-size:.88rem}
+.btn-gray:active{background:#475569}
+.sep{border:none;border-top:1px solid #334155;margin:12px 0}
+.player-row{display:grid;grid-template-columns:1fr 52px 52px 34px;
+  gap:5px;margin-bottom:8px;align-items:start}
+.col-heads{display:grid;grid-template-columns:1fr 52px 52px 34px;
+  gap:5px;margin-bottom:5px;font-size:.68rem;color:#64748b;text-align:center}
+.col-heads span:first-child{text-align:right}
+.p-wrap{display:flex;flex-direction:column}
+.p-name.is-new{border-color:#fbbf24;background:#1a1500}
+.new-badge{font-size:.62rem;color:#fbbf24;background:#78350f;border-radius:4px;
+  padding:1px 5px;display:none;margin-top:2px;width:fit-content}
+.rm-btn{background:none;border:none;color:#475569;cursor:pointer;font-size:1.3rem;
+  padding:6px 4px;line-height:1;border-radius:6px;margin-top:2px}
+.rm-btn:active{color:#ef4444}
+.add-btn{width:100%;background:none;border:1px dashed #475569;color:#64748b;
+  border-radius:8px;padding:11px;cursor:pointer;font-size:.88rem;margin-top:4px}
+.add-btn:active{border-color:#fbbf24;color:#fbbf24}
+.score-box{text-align:center;padding:14px;background:#0f172a;border-radius:10px;margin:12px 0}
+.score-big{font-size:2.8rem;font-weight:bold;letter-spacing:8px;color:#fbbf24}
+.score-lbl{font-size:.78rem;color:#64748b;margin-top:4px}
+.status{font-size:.82rem;padding:10px 12px;border-radius:8px;margin-bottom:10px;line-height:1.5}
+.st-ok{background:#064e3b;color:#6ee7b7}
+.st-err{background:#7f1d1d;color:#fca5a5}
+.st-load{background:#1e3a8a;color:#93c5fd}
+.token-info{font-size:.72rem;color:#475569;line-height:1.7;margin-top:10px}
+.token-info b{color:#94a3b8}
+.token-show{font-size:.8rem;color:#94a3b8;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>⚽ כדורגל שישי</h1>
+
+<!-- TOKEN SETUP -->
+<div class="card" id="tokenCard">
+  <h2>🔑 חיבור ל-GitHub</h2>
+  <div class="token-show" id="tokenShow">לא מחובר</div>
+  <label>Personal Access Token</label>
+  <input type="password" id="tokenInput" placeholder="ghp_...">
+  <button class="btn btn-gold" onclick="saveToken()">שמור וחבר</button>
+  <div id="tokenErr" style="color:#fca5a5;font-size:.8rem;margin-top:6px;display:none"></div>
+  <div class="token-info">
+    יצירת טוקן: GitHub → Settings → Developer settings →
+    Personal access tokens → Tokens (classic) → Generate new →
+    בחר <b>repo</b> → Copy &amp; הדבק כאן
+  </div>
+</div>
+
+<!-- MAIN (shown after token) -->
+<div id="mainSection" style="display:none">
+  <div id="loadStatus" class="status st-load">⏳ טוען...</div>
+
+  <div class="card">
+    <h2>📋 משחק חדש</h2>
+
+    <label>תאריך</label>
+    <input type="date" id="gameDate">
+
+    <hr class="sep">
+    <h3 style="color:#3b82f6">קבוצה א׳</h3>
+    <div class="col-heads"><span>שחקן</span><span>שע׳</span><span>בישול</span><span></span></div>
+    <div id="teamA"></div>
+    <button class="add-btn" onclick="addRow('A')">+ הוסף שחקן</button>
+
+    <hr class="sep">
+    <h3 style="color:#ef4444">קבוצה ב׳</h3>
+    <div class="col-heads"><span>שחקן</span><span>שע׳</span><span>בישול</span><span></span></div>
+    <div id="teamB"></div>
+    <button class="add-btn" onclick="addRow('B')">+ הוסף שחקן</button>
+
+    <div class="score-box">
+      <div class="score-big" id="scoreDisplay">0 – 0</div>
+      <div class="score-lbl" id="scoreLbl">תיקו</div>
+    </div>
+
+    <hr class="sep">
+    <h3>🏅 פרסים (אופציונלי)</h3>
+    <label>MVP המשחק</label>
+    <select id="mvpSelect"><option value="">— ללא —</option></select>
+    <div id="wgDiv">
+      <label>⚡ שער ניצחון</label>
+      <select id="wgSelect"><option value="">— ללא —</option></select>
+    </div>
+
+    <button class="btn btn-green" id="saveBtn" onclick="saveGame()">💾 שמור ופרסם</button>
+    <button class="btn btn-gray" onclick="resetForm()">🗑️ נקה טופס</button>
+    <div id="saveStatus" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<datalist id="playerList"></datalist>
+
+<script>
+const OWNER = 'FogelYotam';
+const REPO  = 'Friday-soccer';
+const FILE  = 'games_data.json';
+
+let gamesData    = [];
+let knownPlayers = new Set();
+let currentSHA   = '';
+
+// ─── TOKEN ──────────────────────────────────────────────────
+function getToken(){ return localStorage.getItem('gh_token')||''; }
+
+function saveToken(){
+  const t = document.getElementById('tokenInput').value.trim();
+  if (!t){ showTokenErr('הכנס טוקן'); return; }
+  localStorage.setItem('gh_token', t);
+  document.getElementById('tokenInput').value = '';
+  document.getElementById('tokenErr').style.display = 'none';
+  refreshTokenUI();
+  initApp();
+}
+
+function refreshTokenUI(){
+  const t = getToken();
+  const el = document.getElementById('tokenShow');
+  el.textContent = t ? `✓ מחובר (…${t.slice(-4)})` : 'לא מחובר';
+  el.style.color  = t ? '#10b981' : '#64748b';
+}
+
+function showTokenErr(msg){
+  const el = document.getElementById('tokenErr');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+// ─── INIT ────────────────────────────────────────────────────
+async function initApp(){
+  if (!getToken()) return;
+  document.getElementById('mainSection').style.display = 'block';
+  setLS('st-load','⏳ טוען נתונים מ-GitHub...');
+  try {
+    await loadGames();
+    setLS('st-ok', `✓ ${gamesData.length} משחקים נטענו`);
+    setDefaultDate();
+    initTeams();
+  } catch(e){
+    setLS('st-err','❌ שגיאה בטעינה: ' + e.message);
+  }
+}
+
+function setLS(cls, msg){
+  const el = document.getElementById('loadStatus');
+  el.className = 'status '+cls; el.textContent = msg;
+}
+
+// ─── LOAD ────────────────────────────────────────────────────
+async function loadGames(){
+  const res = await fetch(
+    `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`,
+    { headers:{ Authorization:`token ${getToken()}`, Accept:'application/vnd.github.v3+json' } }
+  );
+  if (!res.ok) throw new Error(`GitHub ${res.status}`);
+  const data = await res.json();
+  currentSHA = data.sha;
+  gamesData  = JSON.parse(decodeURIComponent(escape(atob(data.content.replace(/\n/g,'')))));
+
+  knownPlayers = new Set();
+  gamesData.forEach(g=>{
+    [...(g.teamA||[]),...(g.teamB||[])].forEach(p=>{ if(p.name) knownPlayers.add(p.name); });
+  });
+  const freq={};
+  gamesData.slice(-150).forEach(g=>{
+    [...(g.teamA||[]),...(g.teamB||[])].forEach(p=>{ if(p.name) freq[p.name]=(freq[p.name]||0)+1; });
+  });
+  document.getElementById('playerList').innerHTML =
+    Object.entries(freq).sort((a,b)=>b[1]-a[1]).map(e=>`<option value="${e[0]}">`).join('');
+}
+
+// ─── DATE ────────────────────────────────────────────────────
+function setDefaultDate(){
+  const d=new Date(), day=d.getDay();
+  const back = day===5?0 : day===6?1 : (day+2)%7;
+  d.setDate(d.getDate()-back);
+  document.getElementById('gameDate').value = d.toISOString().split('T')[0];
+}
+function toGameDate(iso){ const[y,m,d]=iso.split('-'); return `${+m}/${+d}/${y}`; }
+
+// ─── TEAMS ───────────────────────────────────────────────────
+function initTeams(){
+  ['teamA','teamB'].forEach(id=>document.getElementById(id).innerHTML='');
+  for(let i=0;i<4;i++){ addRow('A'); addRow('B'); }
+}
+
+function addRow(t){
+  const d=document.createElement('div');
+  d.className='player-row';
+  d.innerHTML=`
+    <div class="p-wrap">
+      <input type="text" list="playerList" placeholder="שם שחקן" class="p-name" oninput="onName(this)">
+      <span class="new-badge">✦ שחקן חדש</span>
+    </div>
+    <input type="number" min="0" value="0" class="p-goals" oninput="updateScore()">
+    <input type="number" min="0" value="0" class="p-assists">
+    <button class="rm-btn" onclick="this.closest('.player-row').remove();updateScore()">✕</button>`;
+  document.getElementById(`team${t}`).appendChild(d);
+}
+
+function getTeam(t){
+  return [...document.querySelectorAll(`#team${t} .player-row`)]
+    .filter(r=>r.querySelector('.p-name').value.trim())
+    .map(r=>({
+      name:    r.querySelector('.p-name').value.trim(),
+      goals:   +r.querySelector('.p-goals').value||0,
+      assists: +r.querySelector('.p-assists').value||0
+    }));
+}
+
+// ─── NEW PLAYER ──────────────────────────────────────────────
+function onName(inp){
+  const name=inp.value.trim(), badge=inp.nextElementSibling;
+  const isNew=name.length>0 && !knownPlayers.has(name);
+  inp.classList.toggle('is-new',isNew);
+  badge.style.display=isNew?'block':'none';
+  updateScore();
+}
+
+// ─── SCORE + AWARDS ──────────────────────────────────────────
+function updateScore(){
+  const sA=getTeam('A').reduce((s,p)=>s+p.goals,0);
+  const sB=getTeam('B').reduce((s,p)=>s+p.goals,0);
+  const el=document.getElementById('scoreDisplay');
+  const lb=document.getElementById('scoreLbl');
+  el.textContent=`${sA} – ${sB}`;
+  if(sA>sB){el.style.color='#10b981';lb.textContent='ניצחון א׳';}
+  else if(sB>sA){el.style.color='#ef4444';lb.textContent='ניצחון ב׳';}
+  else{el.style.color='#fbbf24';lb.textContent='תיקו';}
+  updateAwards(sA,sB);
+}
+
+function updateAwards(sA,sB){
+  const all=[...getTeam('A'),...getTeam('B')].map(p=>p.name).filter(Boolean);
+  const mvp=document.getElementById('mvpSelect'), prevM=mvp.value;
+  mvp.innerHTML='<option value="">— ללא —</option>'+all.map(n=>`<option>${n}</option>`).join('');
+  if(all.includes(prevM)) mvp.value=prevM;
+
+  const wg=document.getElementById('wgSelect'), prevW=wg.value;
+  const draw=sA===sB;
+  document.getElementById('wgDiv').style.opacity=draw?'0.4':'1';
+  wg.disabled=draw;
+  if(draw){wg.value='';return;}
+  const pool=(sA>sB?getTeam('A'):getTeam('B')).map(p=>p.name).filter(Boolean);
+  wg.innerHTML='<option value="">— ללא —</option>'+pool.map(n=>`<option>${n}</option>`).join('');
+  if(pool.includes(prevW)) wg.value=prevW;
+}
+
+// ─── SAVE → GITHUB ───────────────────────────────────────────
+async function saveGame(){
+  const dateVal=document.getElementById('gameDate').value;
+  if(!dateVal){alert('נא לבחור תאריך');return;}
+  const tA=getTeam('A'), tB=getTeam('B');
+  if(tA.length<2){alert('קבוצה א׳ – לפחות 2 שחקנים');return;}
+  if(tB.length<2){alert('קבוצה ב׳ – לפחות 2 שחקנים');return;}
+
+  const sA=tA.reduce((s,p)=>s+p.goals,0), sB=tB.reduce((s,p)=>s+p.goals,0);
+  const gameDate=toGameDate(dateVal);
+  if(gamesData.find(g=>g.date===gameDate))
+    if(!confirm(`כבר קיים משחק ב-${gameDate}. להוסיף בכל זאת?`)) return;
+
+  const game={date:gameDate, teamA:tA, teamB:tB, scoreA:sA, scoreB:sB};
+  const mvp=document.getElementById('mvpSelect').value||null;
+  const wg =document.getElementById('wgSelect').value||null;
+  if(mvp) game.mvp=mvp;
+  if(wg)  game.wg=wg;
+  gamesData.push(game);
+
+  const btn=document.getElementById('saveBtn');
+  btn.disabled=true; btn.textContent='⏳ שומר...';
+  const statusEl=document.getElementById('saveStatus');
+  statusEl.innerHTML='';
+
+  try {
+    await commitGitHub(gameDate);
+    const res=sA>sB?'ניצחון א׳':sB>sA?'ניצחון ב׳':'תיקו';
+    statusEl.innerHTML=`<div class="status st-ok">
+      ✅ נשמר! ${gameDate} — ${sA}:${sB} (${res})<br>
+      כעת פתח את המחשב ולחץ פעמיים על <b>update.bat</b>
+    </div>`;
+    setLS('st-ok',`✓ ${gamesData.length} משחקים`);
+  } catch(e){
+    gamesData.pop();
+    statusEl.innerHTML=`<div class="status st-err">❌ שגיאה: ${e.message}</div>`;
+  } finally {
+    btn.disabled=false; btn.textContent='💾 שמור ופרסם';
+  }
+}
+
+async function commitGitHub(dateLabel){
+  const content=btoa(unescape(encodeURIComponent(JSON.stringify(gamesData,null,2))));
+  const res=await fetch(
+    `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`,
+    { method:'PUT',
+      headers:{ Authorization:`token ${getToken()}`, 'Content-Type':'application/json' },
+      body:JSON.stringify({ message:`Add game ${dateLabel}`, content, sha:currentSHA })
+    }
+  );
+  if(!res.ok){ const e=await res.json(); throw new Error(e.message||res.status); }
+  const data=await res.json();
+  currentSHA=data.content.sha;
+}
+
+// ─── RESET ───────────────────────────────────────────────────
+function resetForm(){
+  initTeams(); setDefaultDate(); updateScore();
+  document.getElementById('mvpSelect').value='';
+  document.getElementById('wgSelect').value='';
+  document.getElementById('saveStatus').innerHTML='';
+}
+
+// ─── BOOT ────────────────────────────────────────────────────
+refreshTokenUI();
+if(getToken()) initApp();
+</script>
+</body>
+</html>
