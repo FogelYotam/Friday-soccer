@@ -1027,11 +1027,11 @@ function buildYears(){
   showYearStats();
 }
 function showYearStats(){
-  yrSortKey='w'; yrSortDir=-1;
+  yrSortKey='w'; yrSortDir=1;
   renderYearTable();
 }
 function sortYearTable(key){
-  if(yrSortKey===key) yrSortDir*=-1; else{yrSortKey=key;yrSortDir=-1;}
+  if(yrSortKey===key) yrSortDir*=-1; else{yrSortKey=key;yrSortDir=1;}
   renderYearTable();
 }
 function renderYearTable(){
@@ -1052,7 +1052,7 @@ function renderYearTable(){
     });
   const maxPts=Math.max(...rows.map(r=>r.pts),1);
   const maxG=Math.max(...rows.map(r=>r.g),1);
-  const yrTh=(key,label)=>`<th onclick="sortYearTable('${key}')" style="${yrSortKey===key?'color:#fff':''}">${label}${yrSortKey===key?(yrSortDir===-1?' ▼':' ▲'):''}</th>`;
+  const yrTh=(key,label)=>`<th onclick="sortYearTable('${key}')" style="${yrSortKey===key?'color:#fff':''}">${label}${yrSortKey===key?(yrSortDir===1?' ▼':' ▲'):''}</th>`;
   document.getElementById('yearTable').innerHTML=`
     <table>
       <thead><tr>
