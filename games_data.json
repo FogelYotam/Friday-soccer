@@ -39268,5 +39268,75 @@
     ],
     "scoreA": 6,
     "scoreB": 1
+  },
+  {
+    "date": "5/29/2026",
+    "teamA": [
+      {
+        "name": "רותם",
+        "goals": 2,
+        "assists": 0
+      },
+      {
+        "name": "אורן",
+        "goals": 1,
+        "assists": 0
+      },
+      {
+        "name": "זליצקי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "פוגל",
+        "goals": 1,
+        "assists": 0
+      },
+      {
+        "name": "רמי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "קצ'ל",
+        "goals": 0,
+        "assists": 0
+      }
+    ],
+    "teamB": [
+      {
+        "name": "עידן",
+        "goals": 1,
+        "assists": 0
+      },
+      {
+        "name": "זיו",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "אייל",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "רפי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "מוטי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "לאון",
+        "goals": 2,
+        "assists": 0
+      }
+    ],
+    "scoreA": 4,
+    "scoreB": 3,
+    "wg": "אורן"
   }
 ]
