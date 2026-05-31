@@ -1,9 +1,11 @@
 import json, openpyxl
 from collections import defaultdict
 
-GAMES_PATH = r'C:\Users\shlom\OneDrive\Documents\SOCCER\games_data.json'
+import os as _os
+_DIR       = _os.path.dirname(_os.path.abspath(__file__))
+GAMES_PATH = _os.path.join(_DIR, 'games_data.json')
 EXCEL_PATH = r'C:\Users\shlom\OneDrive\Documents\כדורגל שישי\כדורגל שישי בילו 2026.xlsx'
-OUT_PATH   = r'C:\Users\shlom\OneDrive\Documents\SOCCER\dashboard.html'
+OUT_PATH   = _os.path.join(_DIR, 'dashboard.html')
 
 MERGE_MAP = {
     "אסף ד":            "אסף",
@@ -324,6 +326,7 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
   <button onclick="showTab('partners',this)">🤝 שותפויות</button>
   <button onclick="showTab('years',this)">📅 לפי שנה</button>
   <button onclick="showTab('facts',this)">✨ עובדות</button>
+  <button onclick="showTab('lastgame',this)">📋 מחזור אחרון</button>
 </nav>
 
 <!-- OVERVIEW TAB -->
@@ -494,6 +497,17 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
     <h3>🔥 יריבויות הכי נפוצות</h3>
     <div id="rivalsList" class="tbl-wrap"></div>
   </div>
+</div>
+
+<!-- LAST GAME TAB -->
+<div id="tab-lastgame" class="tab">
+  <div class="card" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <h3 style="margin:0">📋 בחר מחזור</h3>
+      <select id="gameDateSel" onchange="showSelectedGame()" style="background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:6px 10px;font-size:.95rem"></select>
+    </div>
+  </div>
+  <div id="lastGameDisplay"></div>
 </div>
 
 <script>
@@ -1128,6 +1142,59 @@ function buildFacts(){
     </table>`;
 }
 
+// ============ LAST GAME ============
+function renderGameCard(game){
+  const dateStr = game.date || '';
+  const sA = game.scoreA ?? '?', sB = game.scoreB ?? '?';
+  const winner = sA > sB ? 'A' : sB > sA ? 'B' : 'X';
+  function teamRows(players){
+    return (players||[]).map(p=>{
+      const g = p.goals||0, a = p.assists||0;
+      const chips = [];
+      if(g) chips.push(`<span class="chip chip-green">${g}⚽</span>`);
+      if(a) chips.push(`<span class="chip chip-blue">${a}🅰️</span>`);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #1e293b">
+        <span style="color:#e2e8f0">${p.name}</span>
+        <span>${chips.join(' ')}</span>
+      </div>`;
+    }).join('');
+  }
+  const colA = winner==='A'?'#10b981':winner==='B'?'#ef4444':'#fbbf24';
+  const colB = winner==='B'?'#10b981':winner==='A'?'#ef4444':'#fbbf24';
+  const mvpHtml = game.mvp ? `<div style="margin-top:10px;text-align:center"><span class="chip chip-orange">🏅 MVP: ${game.mvp}</span></div>` : '';
+  const wgHtml  = game.wg  ? `<div style="margin-top:4px;text-align:center"><span class="chip chip-green">🥅 שער ניצחון: ${game.wg}</span></div>`  : '';
+  return `<div class="grid2" style="gap:12px">
+    <div class="card" style="border-top:3px solid ${colA}">
+      <h3 style="color:${colA};text-align:center;margin-bottom:8px">קבוצה א׳ — ${sA}</h3>
+      ${teamRows(game.teamA)}
+    </div>
+    <div class="card" style="border-top:3px solid ${colB}">
+      <h3 style="color:${colB};text-align:center;margin-bottom:8px">קבוצה ב׳ — ${sB}</h3>
+      ${teamRows(game.teamB)}
+    </div>
+  </div>
+  ${mvpHtml}${wgHtml}`;
+}
+
+function buildLastGame(){
+  const sel = document.getElementById('gameDateSel');
+  // populate dates newest-first
+  const dates = [...new Set(GAMES.map(g=>g.date))].reverse();
+  sel.innerHTML = dates.map(d=>`<option value="${d}">${d}</option>`).join('');
+  showSelectedGame();
+}
+
+function showSelectedGame(){
+  const sel = document.getElementById('gameDateSel');
+  const date = sel.value;
+  const game = GAMES.slice().reverse().find(g=>g.date===date);
+  const el = document.getElementById('lastGameDisplay');
+  if(!game){ el.innerHTML='<div class="card">לא נמצא משחק לתאריך זה</div>'; return; }
+  el.innerHTML = `<div class="card" style="margin-bottom:12px;text-align:center">
+    <h2 style="margin:0">📅 ${game.date}</h2>
+  </div>` + renderGameCard(game);
+}
+
 // ============ INIT ============
 buildOverview();
 buildLeaderboard();
@@ -1138,6 +1205,7 @@ buildYears();
 buildFacts();
 calcH2H();
 showPartnerStats();
+buildLastGame();
 </script>
 </body>
 </html>

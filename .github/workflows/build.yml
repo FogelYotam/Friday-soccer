@@ -1,0 +1,36 @@
+name: Build Dashboard
+
+on:
+  push:
+    paths:
+      - 'games_data.json'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Build dashboard
+        run: python gen_dashboard.py
+
+      - name: Copy to index.html
+        run: cp dashboard.html index.html
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html dashboard.html
+          git diff --cached --quiet || git commit -m "Auto-build dashboard"
+          git push
