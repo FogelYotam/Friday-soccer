@@ -107,6 +107,21 @@ input:focus,select:focus{outline:none;border-color:#fbbf24}
     <div class="score-label" id="scoreLabel">תיקו</div>
   </div>
 
+  <!-- Awards -->
+  <div style="margin:14px 0">
+    <h3 style="margin-bottom:10px;color:#94a3b8;font-size:.88rem">🏅 פרסים (אופציונלי)</h3>
+    <div class="grid2">
+      <div>
+        <div style="font-size:.75rem;color:#64748b;margin-bottom:4px">🏅 MVP המשחק</div>
+        <select id="mvpSelect"><option value="">— ללא —</option></select>
+      </div>
+      <div id="wgDiv">
+        <div style="font-size:.75rem;color:#64748b;margin-bottom:4px">⚡ שער ניצחון</div>
+        <select id="wgSelect"><option value="">— ללא —</option></select>
+      </div>
+    </div>
+  </div>
+
   <div style="display:flex;gap:10px;flex-wrap:wrap">
     <button class="btn btn-green" onclick="saveGame()">💾 שמור ועדכן</button>
     <button class="btn btn-gray" onclick="clearForm()">🗑️ נקה טופס</button>
@@ -231,6 +246,29 @@ function updateScore() {
   if (sA > sB) { el.style.color='#10b981'; lbl.textContent='ניצחון א׳'; }
   else if (sB > sA) { el.style.color='#ef4444'; lbl.textContent='ניצחון ב׳'; }
   else { el.style.color='#fbbf24'; lbl.textContent='תיקו'; }
+  updateAwards(sA, sB);
+}
+
+function updateAwards(sA, sB) {
+  const all = [...getTeamData('A'), ...getTeamData('B')].map(p=>p.name).filter(Boolean);
+  const mvpSel = document.getElementById('mvpSelect');
+  const prev = mvpSel.value;
+  mvpSel.innerHTML = '<option value="">— ללא —</option>' +
+    all.map(n=>`<option value="${n}">${n}</option>`).join('');
+  if (all.includes(prev)) mvpSel.value = prev;
+
+  const wgSel = document.getElementById('wgSelect');
+  const prevWg = wgSel.value;
+  const wgDiv  = document.getElementById('wgDiv');
+  const isDraw = (sA === sB);
+  wgDiv.style.opacity = isDraw ? '0.4' : '1';
+  wgSel.disabled = isDraw;
+  if (isDraw) { wgSel.value = ''; return; }
+  const wgPool = sA > sB ? getTeamData('A') : getTeamData('B');
+  const wgNames = wgPool.map(p=>p.name).filter(Boolean);
+  wgSel.innerHTML = '<option value="">— ללא —</option>' +
+    wgNames.map(n=>`<option value="${n}">${n}</option>`).join('');
+  if (wgNames.includes(prevWg)) wgSel.value = prevWg;
 }
 
 // ─── SAVE ────────────────────────────────────────────────────
@@ -252,7 +290,11 @@ function saveGame() {
     if (!confirm(`כבר קיים משחק בתאריך ${gameDate}. להוסיף בכל זאת?`)) return;
   }
 
+  const mvp = document.getElementById('mvpSelect').value || null;
+  const wg  = document.getElementById('wgSelect').value  || null;
   const game = { date: gameDate, teamA, teamB, scoreA, scoreB };
+  if (mvp) game.mvp = mvp;
+  if (wg)  game.wg  = wg;
   gamesData.push(game);
 
   // Download updated JSON
@@ -278,6 +320,8 @@ function clearForm() {
   initTeams();
   setDefaultDate();
   updateScore();
+  document.getElementById('mvpSelect').value = '';
+  document.getElementById('wgSelect').value  = '';
   document.getElementById('saveStatus').innerHTML = '';
 }
 
