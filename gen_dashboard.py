@@ -902,22 +902,24 @@ function buildKosher() {
   const ref = Math.max(...GAMES.map(g=>parseDate(g.date)));  // date of latest game
   const cutA = ref - 180*KSR_DAY;   // window A: last 180 days
   const cutB = ref - 360*KSR_DAY;   // window B: 180 days before that
+  const cutActive = ref - 730*KSR_DAY;  // eligibility: played within the last 730 days
   document.getElementById('kosherFormula').textContent =
-    'ניקוד = ממוצע משוקלל: 180 הימים האחרונים ×2 + 180 הימים שלפניהם ×1 (ישן יותר לא נספר) | נוסחה: %נצח×40 + ש/מ×20 + ב/מ×10 + MVP/מ×30 + שניצ׳/מ×20';
+    'מוצגים רק מי ששיחקו ב-730 הימים האחרונים | ניקוד = ממוצע משוקלל: 180 הימים האחרונים ×2 + 180 שלפניהם ×1 (ישן יותר לא נספר בניקוד) | נוסחה: %נצח×40 + ש/מ×20 + ב/מ×10 + MVP/מ×30 + שניצ׳/מ×20';
 
   // aggregate per player per window from raw games
-  const agg = {};  // name -> {A:{gm,w,g,a,mvp,wg}, B:{...}}
+  // A = last 180d, B = 180d before, C = older but within 730d (eligibility only)
+  const agg = {};  // name -> {A:{gm,w,g,a,mvp,wg}, B:{...}, C:{...}}
   const blank = () => ({gm:0,w:0,g:0,a:0,mvp:0,wg:0});
   GAMES.forEach(g => {
     const t = parseDate(g.date);
-    if (t < cutB) return;
-    const wnd = t >= cutA ? 'A' : 'B';
+    if (t < cutActive) return;
+    const wnd = t >= cutA ? 'A' : t >= cutB ? 'B' : 'C';
     const sA=g.scoreA??0, sB=g.scoreB??0;
     const res = team => team==='A' ? (sA>sB?'w':sA<sB?'l':'d') : (sB>sA?'w':sB<sA?'l':'d');
     [['A', g.teamA||[]], ['B', g.teamB||[]]].forEach(([team, list]) => {
       list.forEach(p => {
         if (!p.name) return;
-        if (!agg[p.name]) agg[p.name] = {A:blank(), B:blank()};
+        if (!agg[p.name]) agg[p.name] = {A:blank(), B:blank(), C:blank()};
         const w = agg[p.name][wnd];
         w.gm++; if (res(team)==='w') w.w++;
         w.g += p.goals||0; w.a += p.assists||0;
@@ -928,7 +930,7 @@ function buildKosher() {
   });
 
   _ksrRows = STATS.players
-    .filter(p => agg[p.name] && (agg[p.name].A.gm + agg[p.name].B.gm) >= min)
+    .filter(p => agg[p.name] && (agg[p.name].A.gm + agg[p.name].B.gm + agg[p.name].C.gm) >= min)
     .map(p => {
       const {A, B} = agg[p.name];
       const scA = winScore(A), scB = winScore(B);
