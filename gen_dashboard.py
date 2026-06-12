@@ -519,7 +519,7 @@ const GAMES = GAMES_PLACEHOLDER;
 //    }
 // 2. Deploy → Web app → Anyone can access → copy the URL
 // 3. Paste it below:
-const WEBHOOK_URL = '';  // e.g. 'https://script.google.com/macros/s/ABC.../exec'
+const WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbyPufHBwouLd74f2oWQBeZCnnZmSQ3qmvnW1784VKeEy5PHhb6vL7tSseMiu6R7pBIV/exec';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BONUS = {};
