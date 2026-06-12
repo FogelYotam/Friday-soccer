@@ -328,35 +328,45 @@ function parseDate(d) {
 }
 
 // ── Streak computation (all players, sorted by date) ─────────────────────────
-const STREAKS = (() => {
-  const sorted = [...GAMES].sort((a,b) => parseDate(a.date) - parseDate(b.date));
+// run = consecutive games matching a condition; tracks best with date range
+function _pushRun(c, key, ok, dt) {
+  if (!ok) { c['cur'+key] = 0; return; }
+  if (!c['cur'+key]) c['_f'+key] = dt;
+  c['cur'+key] = (c['cur'+key]||0) + 1;
+  if (c['cur'+key] > (c['best'+key]||0)) {
+    c['best'+key] = c['cur'+key];
+    c['best'+key+'From'] = c['_f'+key];
+    c['best'+key+'To']   = dt;
+  }
+}
+function computeStreaks(games) {
+  const sorted = [...games].sort((a,b) => parseDate(a.date) - parseDate(b.date));
   const s = {};
   sorted.forEach(g => {
     const sA = g.scoreA??0, sB = g.scoreB??0;
     const rA = sA>sB?'W':sA<sB?'L':'D';
     const rB = sB>sA?'W':sB<sA?'L':'D';
     const upd = (name, r, dt) => {
-      if (!s[name]) s[name] = {type:null, count:0, bestW:0, bestU:0, curU:0};
+      if (!s[name]) s[name] = {type:null, count:0};
       const c = s[name];
       if (c.type === r) c.count++;
       else { c.type = r; c.count = 1; }
-      if (r==='W') {
-        if (c.count === 1) c._wFrom = dt;
-        if (c.count > c.bestW) { c.bestW=c.count; c.bestWFrom=c._wFrom; c.bestWTo=dt; }
-      }
-      // unbeaten run (wins + draws)
-      if (r==='L') c.curU = 0;
-      else {
-        if (c.curU === 0) c._uFrom = dt;
-        c.curU++;
-        if (c.curU > c.bestU) { c.bestU=c.curU; c.bestUFrom=c._uFrom; c.bestUTo=dt; }
-      }
+      _pushRun(c, 'W',  r==='W', dt);  // win streak
+      _pushRun(c, 'U',  r!=='L', dt);  // unbeaten (W+D)
+      _pushRun(c, 'NW', r!=='W', dt);  // winless (L+D)
     };
     (g.teamA||[]).forEach(p => { if(p.name) upd(p.name, rA, g.date); });
     (g.teamB||[]).forEach(p => { if(p.name) upd(p.name, rB, g.date); });
   });
   return s;
-})();
+}
+const STREAKS = computeStreaks(GAMES);
+const _yearStreaksCache = {};
+function yearStreaks(yr) {
+  if (!_yearStreaksCache[yr])
+    _yearStreaksCache[yr] = computeStreaks(GAMES.filter(g => (g.date||'').endsWith('/'+yr)));
+  return _yearStreaksCache[yr];
+}
 
 // ── Utils ────────────────────────────────────────────────────────────────────
 function pct(w,t)  { return t>0 ? Math.round(100*w/t) : 0; }
@@ -409,11 +419,31 @@ function renderYearHeroes(yr) {
       <b style="color:#fbbf24">${fmt(p)}</b>
     </div>`).join('') : '<div style="color:#475569;font-size:.75rem">אין נתונים</div>';
 
+  // per-year streak records
+  const ys = yearStreaks(yr);
+  const known = new Set(STATS.players.map(p=>p.name));
+  const topStreak = (key, lbl) => {
+    const list = Object.entries(ys)
+      .filter(([n,s]) => known.has(n) && (s['best'+key]||0) > 0)
+      .sort((a,b) => b[1]['best'+key]-a[1]['best'+key]).slice(0,3);
+    return list.length ? list.map(([n,s],i)=>`
+      <div style="font-size:.76rem;margin-bottom:4px">
+        <div style="display:flex;justify-content:space-between">
+          <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
+          <b style="color:#fbbf24">${s['best'+key]} ${lbl}</b>
+        </div>
+        <div style="font-size:.64rem;color:#64748b;text-align:left">${streakRange(s['best'+key+'From'], s['best'+key+'To'])}</div>
+      </div>`).join('') : '<div style="color:#475569;font-size:.75rem">אין נתונים</div>';
+  };
+
   document.getElementById('curYearHeroes').innerHTML = [
     {icon:'⚽', label:`מלך שערים ${yr}`, content:row(scorers,p=>`${p.g} שע׳`)},
     {icon:'🅰️', label:`מלך בישולים ${yr}`, content:row(assists,p=>`${p.a} בישול`)},
     {icon:'🏅', label:`MVP ${yr}`, content:mvp.length?row(mvp,p=>`${p.mvp} MVP`):'<div style="color:#475569;font-size:.75rem">'+(yr===latest?'טרם נקבע':'אין נתונים')+'</div>'},
     {icon:'⚡', label:`שניצ׳ ${yr}`, content:wg.length?row(wg,p=>`${p.wg} שניצ׳`):'<div style="color:#475569;font-size:.75rem">'+(yr===latest?'טרם נקבע':'אין נתונים')+'</div>'},
+    {icon:'🔥', label:`רצף ניצחונות ${yr}`, content:topStreak('W','ברצף')},
+    {icon:'🛡️', label:`רצף ללא הפסד ${yr}`, content:topStreak('U','ללא הפסד')},
+    {icon:'🥶', label:`רצף ללא ניצחון ${yr}`, content:topStreak('NW','ללא ניצחון')},
   ].map(h=>`
     <div class="hero-card">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
@@ -881,6 +911,7 @@ function profileBody(name, chartId) {
       ${sBox("שניצ'",  b.wg||'-',  '#10b981')}
       ${sBox('שיא רצף ניצחונות', (sk&&sk.bestW) ? sk.bestW+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestWFrom, sk.bestWTo)}</div>` : '-', '#fb923c')}
       ${sBox('שיא ללא הפסד',     (sk&&sk.bestU) ? sk.bestU+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestUFrom, sk.bestUTo)}</div>` : '-', '#22d3ee')}
+      ${sBox('שיא ללא ניצחון',   (sk&&sk.bestNW) ? sk.bestNW+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestNWFrom, sk.bestNWTo)}</div>` : '-', '#94a3b8')}
     </div>
     ${yrs.length>1 ? `
     <div class="card" style="padding:10px;margin-bottom:12px">
