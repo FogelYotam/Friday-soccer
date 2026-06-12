@@ -46,11 +46,6 @@ _MVP_COLS   = {'סכום של MVP', 'MVP'}
 _WG_COLS    = {'סכום של שער ניצחון', 'שער ניצחון'}
 
 def read_excel_bonus():
-    """Read MVP and winning-goal counts per player per year from Excel annual sheets (2017+).
-    Returns (by_year_list, totals_dict):
-      by_year_list: [{name, yr, mvp, wg}, ...]
-      totals_dict:  {name: {mvp, wg}}
-    """
     try:
         wb = openpyxl.load_workbook(EXCEL_PATH, data_only=True)
     except Exception as e:
@@ -98,7 +93,7 @@ def read_excel_bonus():
 def compute_stats(games):
     player_stats  = defaultdict(lambda: {'gm':0,'w':0,'l':0,'d':0,'g':0,'a':0})
     year_stats    = defaultdict(lambda: defaultdict(lambda: {'gm':0,'w':0,'l':0,'d':0,'g':0,'a':0}))
-    pair_stats    = defaultdict(lambda: {'w':0,'l':0,'t':0,'g':0,'a':0})   # same team
+    pair_stats    = defaultdict(lambda: {'w':0,'l':0,'t':0,'g':0,'a':0})
     rival_stats   = defaultdict(lambda: {'fw':0,'t':0,'d':0,'p1g':0,'p2g':0,'p1a':0,'p2a':0})
 
     for game in games:
@@ -138,7 +133,6 @@ def compute_stats(games):
                 year_stats[yr][name]['g']  += pd.get('goals', 0)
                 year_stats[yr][name]['a']  += pd.get('assists', 0)
 
-        # Partners (same team) — track wins/losses and combined goals+assists
         for i, n1 in enumerate(tA):
             for n2 in tA[i+1:]:
                 k = tuple(sorted([n1, n2]))
@@ -157,7 +151,6 @@ def compute_stats(games):
                 if rb == 'w': pair_stats[k]['w'] += 1
                 elif rb == 'l': pair_stats[k]['l'] += 1
 
-        # Rivals / H2H (opposite teams)
         for pa in tA:
             for pb in tB:
                 k = tuple(sorted([pa, pb]))
@@ -189,7 +182,6 @@ def compute_stats(games):
     return {'players': players, 'byYear': by_year, 'pairs': pairs, 'rivals': rivals}
 
 def read_games_bonus(games):
-    """Read MVP and winning-goal from games_data.json entries."""
     by_year = []
     totals  = defaultdict(lambda: {'mvp': 0, 'wg': 0})
     for g in games:
@@ -208,7 +200,6 @@ def generate():
     with open(GAMES_PATH, encoding='utf-8-sig') as f:
         games = json.load(f)
 
-    # Normalize player names in raw games
     for g in games:
         g['teamA'] = [p for p in g.get('teamA', []) if normalize(p.get('name',''))]
         g['teamB'] = [p for p in g.get('teamB', []) if normalize(p.get('name',''))]
@@ -217,7 +208,6 @@ def generate():
 
     stats = compute_stats(games)
 
-    # Exclude players with fewer than MIN_GAMES_THRESHOLD total games (guests)
     keep = {p['name'] for p in stats['players'] if p['gm'] >= MIN_GAMES_THRESHOLD}
     stats['players'] = [p for p in stats['players'] if p['name'] in keep]
     stats['byYear']  = [e for e in stats['byYear']  if e['name'] in keep]
@@ -288,16 +278,13 @@ tr:nth-child(even) td{background:#162030}
 select,input[type=text]{background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:6px 10px;font-size:.85rem}
 select:focus,input:focus{outline:none;border-color:#fbbf24}
 .hero-card{background:#162030;border:1px solid #334155;border-radius:10px;padding:12px}
-.hero-icon{font-size:1.6rem}
 .vs-wrap{display:flex;align-items:center;justify-content:space-around;padding:14px;background:#0f172a;border-radius:8px;margin-top:8px}
 .vs-player{text-align:center;min-width:110px}
-.vs-name{font-size:1rem;font-weight:bold;color:#fbbf24;margin-bottom:4px}
+.vs-name{font-size:1rem;font-weight:bold;color:#fbbf24;margin-bottom:4px;cursor:pointer}
+.vs-name:hover{text-decoration:underline}
 .vs-wins{font-size:2rem;font-weight:bold}
 .vs-label{font-size:.7rem;color:#64748b;margin-top:2px}
 .vs-mid{font-size:1.2rem;color:#475569;text-align:center}
-.fun-fact{background:#0f172a;border-right:3px solid #fbbf24;padding:8px 12px;margin:5px 0;border-radius:4px}
-.fun-fact .ff-label{font-size:.72rem;color:#64748b}
-.fun-fact .ff-val{font-size:.9rem;color:#fbbf24;font-weight:bold;margin-top:2px}
 .chip{display:inline-block;padding:2px 7px;border-radius:12px;font-size:.68rem;margin:1px}
 .chip-green{background:#064e3b;color:#6ee7b7}
 .chip-red{background:#7f1d1d;color:#fca5a5}
@@ -305,14 +292,38 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
 .chip-orange{background:#78350f;color:#fcd34d}
 .chart-wrap{position:relative;height:220px}
 .pair-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #334155;font-size:.8rem}
-.pair-names{color:#e2e8f0;font-weight:bold;flex:1;padding-left:8px}
-.h2h-stats{margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.8rem}
-.h2h-stat-val{font-size:1.1rem;font-weight:bold;color:#fbbf24}
-.h2h-stat-label{font-size:.68rem;color:#64748b}
 .trend-up{color:#10b981;font-size:1.1rem;font-weight:bold}
 .trend-down{color:#ef4444;font-size:1.1rem;font-weight:bold}
 .trend-same{color:#fbbf24;font-size:1.1rem}
-@media(max-width:900px){.grid2,.grid3,.grid4{grid-template-columns:1fr}}
+/* clickable player names */
+.pl{cursor:pointer;border-bottom:1px dotted #475569;transition:color .15s}
+.pl:hover{color:#fbbf24;border-bottom-color:#fbbf24}
+/* streak badges */
+.sk{font-size:.68rem;font-weight:bold;padding:2px 6px;border-radius:8px}
+.sk-w{background:#064e3b;color:#6ee7b7}
+.sk-l{background:#7f1d1d;color:#fca5a5}
+.sk-d{background:#1e3a8a;color:#93c5fd}
+/* player profile modal */
+.modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:1000;overflow-y:auto;padding:16px}
+.modal-ov.open{display:flex;align-items:flex-start;justify-content:center}
+.modal-box{background:#1e293b;border-radius:14px;border:1px solid #475569;width:100%;max-width:740px;padding:22px 20px 20px;position:relative;margin:auto}
+.modal-close{position:absolute;top:12px;left:12px;background:#334155;border:none;color:#94a3b8;font-size:.82rem;cursor:pointer;padding:4px 10px;border-radius:6px}
+.modal-close:hover{background:#475569;color:#e2e8f0}
+.modal-chart{position:relative;height:190px;margin:10px 0}
+.stat-box{text-align:center;background:#0f172a;border-radius:8px;padding:8px 4px}
+.stat-box .sv{font-size:1.1rem;font-weight:bold}
+.stat-box .sl{font-size:.63rem;color:#64748b;margin-top:2px}
+/* visitor widget */
+.vis-btn{position:fixed;bottom:14px;left:14px;background:#1e3a8a;color:#93c5fd;border:1px solid #3b82f6;border-radius:20px;padding:5px 12px;font-size:.75rem;cursor:pointer;z-index:500;transition:background .2s;white-space:nowrap}
+.vis-btn:hover{background:#2d4fa3}
+.vis-panel{display:none;position:fixed;bottom:50px;left:14px;background:#1e293b;border:1px solid #334155;border-radius:10px;padding:14px;z-index:600;min-width:220px;box-shadow:0 4px 20px rgba(0,0,0,.6)}
+.vis-panel.open{display:block}
+@media(max-width:600px){
+  .grid2,.grid3,.grid4{grid-template-columns:1fr}
+  .modal-box{padding:14px 12px 14px}
+  h1{font-size:1.3rem;padding:14px}
+}
+@media(max-width:900px) and (min-width:601px){.grid3,.grid4{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -321,15 +332,12 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
 <nav>
   <button class="active" onclick="showTab('overview',this)">🏠 סקירה</button>
   <button onclick="showTab('lastgame',this)">📋 מחזור אחרון</button>
-  <button onclick="showTab('years',this)">📅 לפי שנה</button>
   <button onclick="showTab('leaderboard',this)">🏆 מצטיינים</button>
   <button onclick="showTab('kosher',this)">💪 כושר</button>
   <button onclick="showTab('h2h',this)">⚔️ ראש בראש</button>
-  <button onclick="showTab('partners',this)">🤝 שותפויות</button>
-  <button onclick="showTab('facts',this)">✨ עובדות</button>
 </nav>
 
-<!-- OVERVIEW TAB -->
+<!-- OVERVIEW -->
 <div id="tab-overview" class="tab active">
   <div class="card" style="margin-bottom:12px">
     <h3 id="curYearTitle">🗓️ שנה נוכחית</h3>
@@ -342,27 +350,33 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
       <div class="chart-wrap"><canvas id="chartYears"></canvas></div>
     </div>
     <div class="card">
-      <h3>⚽ מבקיעים מובילים (100+ משחקים)</h3>
+      <h3>⚽ מבקיעים מובילים</h3>
       <div class="chart-wrap"><canvas id="chartScorers"></canvas></div>
     </div>
   </div>
   <div class="grid2" style="margin-top:12px">
     <div class="card">
-      <h3>📈 מובילי נקודות (100+ משחקים)</h3>
+      <h3>📈 מובילי נקודות</h3>
       <div class="chart-wrap"><canvas id="chartPoints"></canvas></div>
     </div>
     <div class="card">
-      <h3>🎯 אחוזי ניצחון מובילים (100+ משחקים)</h3>
+      <h3>🎯 אחוזי ניצחון מובילים</h3>
       <div class="chart-wrap"><canvas id="chartWinPct"></canvas></div>
     </div>
   </div>
-  <div class="card" style="margin-top:12px">
-    <h3>🅰️ מלכי הבישולים (100+ משחקים)</h3>
-    <div class="chart-wrap"><canvas id="chartAssists"></canvas></div>
+  <div class="grid2" style="margin-top:12px">
+    <div class="card">
+      <h3>🅰️ מלכי הבישולים</h3>
+      <div class="chart-wrap"><canvas id="chartAssists"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>⚔️ יריבויות הכי נפוצות</h3>
+      <div id="topRivalsOverview" style="max-height:220px;overflow-y:auto"></div>
+    </div>
   </div>
 </div>
 
-<!-- LEADERBOARD TAB -->
+<!-- LEADERBOARD -->
 <div id="tab-leaderboard" class="tab">
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
@@ -379,23 +393,22 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
     </div>
     <div class="tbl-wrap">
       <table>
-        <thead>
-          <tr>
-            <th onclick="sortTable('name')">#שחקן</th>
-            <th onclick="sortTable('gm')">משח׳</th>
-            <th onclick="sortTable('w')">נצח׳</th>
-            <th onclick="sortTable('winpct')">%נצח</th>
-            <th onclick="sortTable('pts')">נק׳</th>
-            <th onclick="sortTable('ppg')">נק/מ</th>
-            <th onclick="sortTable('g')">שע׳</th>
-            <th onclick="sortTable('gpg')">ש/מ</th>
-            <th onclick="sortTable('a')">בישול</th>
-            <th onclick="sortTable('apg')">ב/מ</th>
-            <th onclick="sortTable('contrib')">תרומה/מ</th>
-            <th onclick="sortTable('mvp_n')" style="color:#fbbf24">🏅 MVP</th>
-            <th onclick="sortTable('wg_n')" style="color:#10b981">⚡ שניצ׳</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th onclick="sortTable('name')">#שחקן</th>
+          <th onclick="sortTable('gm')">משח׳</th>
+          <th onclick="sortTable('w')">נצח׳</th>
+          <th onclick="sortTable('winpct')">%נצח</th>
+          <th>רצף</th>
+          <th onclick="sortTable('pts')">נק׳</th>
+          <th onclick="sortTable('ppg')">נק/מ</th>
+          <th onclick="sortTable('g')">שע׳</th>
+          <th onclick="sortTable('gpg')">ש/מ</th>
+          <th onclick="sortTable('a')">בישול</th>
+          <th onclick="sortTable('apg')">ב/מ</th>
+          <th onclick="sortTable('contrib')">תרומה/מ</th>
+          <th onclick="sortTable('mvp_n')" style="color:#fbbf24">🏅 MVP</th>
+          <th onclick="sortTable('wg_n')" style="color:#10b981">⚡ שניצ׳</th>
+        </tr></thead>
         <tbody id="lbBody"></tbody>
       </table>
     </div>
@@ -406,7 +419,7 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
   </div>
 </div>
 
-<!-- KOSHER (RATING) TAB -->
+<!-- KOSHER -->
 <div id="tab-kosher" class="tab">
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
@@ -426,80 +439,25 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
         </span>
       </div>
     </div>
-    <div style="font-size:.72rem;color:#475569;margin-bottom:8px;padding:6px 10px;background:#0f172a;border-radius:6px">
-      ניקוד = ממוצע משוקלל לשנים 2024-2026 בלבד &nbsp;|&nbsp;
-      משקלות: 2024×1 · 2025×2 · 2026×4 &nbsp;|&nbsp;
-      נוסחת שנה: %נצח×40 + ש/מ×20 + ב/מ×10 + MVP/מ×30 + שניצ׳/מ×20
-    </div>
+    <div style="font-size:.72rem;color:#475569;margin-bottom:8px;padding:6px 10px;background:#0f172a;border-radius:6px" id="kosherFormula"></div>
     <div class="tbl-wrap" id="kosherTable"></div>
   </div>
 </div>
 
-<!-- H2H TAB -->
+<!-- H2H -->
 <div id="tab-h2h" class="tab">
   <div class="card">
     <h3>⚔️ השוואה ישירה</h3>
     <div style="display:flex;gap:10px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
-      <select id="h2hA" onchange="calcH2H()" style="flex:1;min-width:120px"></select>
+      <select id="h2hA" onchange="calcH2H()" style="flex:1;min-width:130px"></select>
       <div style="font-weight:bold;color:#fbbf24;font-size:1.1rem">VS</div>
-      <select id="h2hB" onchange="calcH2H()" style="flex:1;min-width:120px"></select>
+      <select id="h2hB" onchange="calcH2H()" style="flex:1;min-width:130px"></select>
     </div>
     <div id="h2hResult"></div>
   </div>
 </div>
 
-<!-- PARTNERS TAB -->
-<div id="tab-partners" class="tab">
-  <div class="grid2" style="margin-bottom:12px">
-    <div class="card">
-      <h3>🏆 הזוגות המנצחים ביותר (מינ׳ 15 משחקים)</h3>
-      <div id="bestPairsWins"></div>
-    </div>
-    <div class="card">
-      <h3>💔 הזוגות המפסידים ביותר (מינ׳ 15 משחקים)</h3>
-      <div id="worstPairsLosses"></div>
-    </div>
-  </div>
-  <div class="card">
-    <h3>🔍 שותפויות לפי שחקן</h3>
-    <div style="margin-bottom:10px">
-      <select id="partnerSearch" onchange="showPartnerStats()" style="min-width:180px"></select>
-    </div>
-    <div id="partnerResult"></div>
-  </div>
-</div>
-
-<!-- YEARS TAB -->
-<div id="tab-years" class="tab">
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-      <h3 style="border:none;padding:0;margin:0">📅 סטטיסטיקה לפי שנה</h3>
-      <div style="display:flex;gap:8px">
-        <select id="yearMinGames" onchange="showYearStats()">
-          <option value="1" selected>כולם</option>
-          <option value="5">מינ׳ 5</option>
-          <option value="10">מינ׳ 10</option>
-        </select>
-        <select id="yearSelect" onchange="showYearStats()"></select>
-      </div>
-    </div>
-    <div id="yearTable" class="tbl-wrap"></div>
-  </div>
-</div>
-
-<!-- FACTS TAB -->
-<div id="tab-facts" class="tab">
-  <div class="grid2">
-    <div class="card"><div id="factsLeft"></div></div>
-    <div class="card"><div id="factsRight"></div></div>
-  </div>
-  <div class="card" style="margin-top:12px">
-    <h3>🔥 יריבויות הכי נפוצות</h3>
-    <div id="rivalsList" class="tbl-wrap"></div>
-  </div>
-</div>
-
-<!-- LAST GAME TAB -->
+<!-- LAST GAME -->
 <div id="tab-lastgame" class="tab">
   <div class="card" style="margin-bottom:12px">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -510,99 +468,155 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
   <div id="lastGameDisplay"></div>
 </div>
 
+<!-- PLAYER PROFILE MODAL -->
+<div id="playerModal" class="modal-ov" onclick="modalBgClick(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal()">✕ סגור</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<!-- VISITOR WIDGET -->
+<button class="vis-btn" id="visBtn" onclick="toggleVisPanel()">
+  👤 <span id="visLabel">מי אתה?</span>
+</button>
+<div class="vis-panel" id="visPanel">
+  <div style="font-size:.82rem;color:#94a3b8;margin-bottom:8px">בחר את שמך — ייזכר בדפדפן:</div>
+  <select id="visSelect" style="width:100%;margin-bottom:8px"></select>
+  <button onclick="saveVisitor()" style="width:100%;padding:6px;background:#1e3a8a;color:#93c5fd;border:1px solid #3b82f6;border-radius:6px;cursor:pointer;font-size:.82rem">✓ שמור</button>
+  <div style="font-size:.68rem;color:#475569;margin-top:8px;line-height:1.4">
+    כדי לראות מי נכנס — הגדר Webhook ב-<code style="color:#94a3b8">WEBHOOK_URL</code> בקוד.
+    <a href="https://docs.google.com/spreadsheets" target="_blank" style="color:#3b82f6">הוראות: Google Sheets + Apps Script</a>
+  </div>
+</div>
+
 <script>
 const STATS = STATS_PLACEHOLDER;
 const GAMES = GAMES_PLACEHOLDER;
 
-// BONUS[name] = {mvp, wg}  (totals)
+// ── Visitor tracking webhook ─────────────────────────────────────────────────
+// 1. Open script.google.com → New project → paste the following code:
+//    function doGet(e){
+//      var sheet = SpreadsheetApp.openById('YOUR_SHEET_ID').getActiveSheet();
+//      sheet.appendRow([new Date(), e.parameter.v, e.parameter.ua]);
+//      return ContentService.createTextOutput('ok');
+//    }
+// 2. Deploy → Web app → Anyone can access → copy the URL
+// 3. Paste it below:
+const WEBHOOK_URL = '';  // e.g. 'https://script.google.com/macros/s/ABC.../exec'
+// ─────────────────────────────────────────────────────────────────────────────
+
 const BONUS = {};
-(STATS.bonus || []).forEach(b => BONUS[b.name] = b);
-// BONUS_BY_YEAR[name][yr] = {mvp, wg}
+(STATS.bonus||[]).forEach(b => BONUS[b.name] = b);
 const BONUS_BY_YEAR = {};
-(STATS.bonusByYear || []).forEach(b => {
-  if(!BONUS_BY_YEAR[b.name]) BONUS_BY_YEAR[b.name]={};
-  BONUS_BY_YEAR[b.name][b.yr]={mvp:b.mvp,wg:b.wg};
+(STATS.bonusByYear||[]).forEach(b => {
+  if (!BONUS_BY_YEAR[b.name]) BONUS_BY_YEAR[b.name] = {};
+  if (!BONUS_BY_YEAR[b.name][b.yr]) BONUS_BY_YEAR[b.name][b.yr] = {mvp:0,wg:0};
+  BONUS_BY_YEAR[b.name][b.yr].mvp += b.mvp||0;
+  BONUS_BY_YEAR[b.name][b.yr].wg  += b.wg||0;
 });
-// Year weights for כושר rating (only 2024+)
-const KSR_YEARS   = ['2024','2025','2026'];
-const KSR_WEIGHTS = {'2024':1,'2025':2,'2026':4};
 
-// ============ UTILS ============
-function pct(w,t){ return t>0 ? Math.round(100*w/t) : 0; }
-function r2(v){ return isFinite(v)? Math.round(v*100)/100 : 0; }
-function showTab(name, btn){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
-  if(btn) btn.classList.add('active');
+// Dynamic kosher years: last 3 years that have data
+const ALL_YRS = [...new Set(STATS.byYear.map(e=>e.yr))].filter(y=>y&&y!=='unknown').sort();
+const KSR_YEARS = ALL_YRS.slice(-3);
+const KSR_WEIGHTS = {};
+KSR_YEARS.forEach((y,i) => KSR_WEIGHTS[y] = Math.pow(2, i)); // 1,2,4
+
+// ── Date parsing (DD/MM/YYYY Israeli format) ─────────────────────────────────
+function parseDate(d) {
+  if (!d) return 0;
+  const p = d.replace(/-/g,'/').split('/');
+  if (p.length === 3) {
+    const [a,b,c] = [+p[0],+p[1],+p[2]];
+    return c > 1000 ? new Date(c,b-1,a).getTime() : new Date(a,b-1,c).getTime();
+  }
+  return new Date(d).getTime();
 }
 
-// ============ ANALYTICS HELPERS ============
-function getTopLineups(limit=3){
-  const counts={};
-  GAMES.forEach(g=>{
-    let winner=null;
-    if(g.scoreA>g.scoreB) winner=g.teamA;
-    else if(g.scoreB>g.scoreA) winner=g.teamB;
-    if(winner){
-      const key=winner.map(p=>p.name).sort().join(' + ');
-      counts[key]=(counts[key]||0)+1;
-    }
+// ── Streak computation (all players, sorted by date) ─────────────────────────
+const STREAKS = (() => {
+  const sorted = [...GAMES].sort((a,b) => parseDate(a.date) - parseDate(b.date));
+  const s = {};
+  sorted.forEach(g => {
+    const sA = g.scoreA??0, sB = g.scoreB??0;
+    const rA = sA>sB?'W':sA<sB?'L':'D';
+    const rB = sB>sA?'W':sB<sA?'L':'D';
+    const upd = (name, r) => {
+      if (!s[name]) s[name] = {type:null, count:0, bestW:0};
+      const c = s[name];
+      if (c.type === r) { c.count++; if (r==='W' && c.count>c.bestW) c.bestW=c.count; }
+      else              { c.type=r; c.count=1; if (r==='W') c.bestW=Math.max(c.bestW,1); }
+    };
+    (g.teamA||[]).forEach(p => { if(p.name) upd(p.name, rA); });
+    (g.teamB||[]).forEach(p => { if(p.name) upd(p.name, rB); });
   });
-  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,limit);
+  return s;
+})();
+
+// ── Utils ────────────────────────────────────────────────────────────────────
+function pct(w,t)  { return t>0 ? Math.round(100*w/t) : 0; }
+function r2(v)     { return isFinite(v) ? Math.round(v*100)/100 : 0; }
+function showTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+// Clickable player name
+function pl(name) {
+  return `<span class="pl" onclick="openProfile(${JSON.stringify(name)})">${name}</span>`;
+}
+function skHtml(name) {
+  const s = STREAKS[name];
+  if (!s || !s.type) return '';
+  const cls = s.type==='W'?'sk-w':s.type==='L'?'sk-l':'sk-d';
+  const lbl = s.type==='W'?'נצח':s.type==='L'?'הפס':'תיקו';
+  return `<span class="sk ${cls}">${s.count}${lbl}</span>`;
 }
 
-function getTopPairs(metric='w', limit=3, min=15){
-  let list=[...STATS.pairs].filter(p=>p.t>=min);
-  if(metric==='pct') list.sort((a,b)=>(b.w/b.t)-(a.w/a.t));
-  else if(metric==='l') list.sort((a,b)=>b.l-a.l);
-  else list.sort((a,b)=>b.w-a.w);
-  return list.slice(0,limit);
-}
-
-// ============ OVERVIEW ============
-function buildOverview(){
-  const ps=STATS.players.map(p=>({...p,
-    pts:(p.w||0)*2+(p.d||0),
-    ppg:p.gm>0?((p.w||0)*2+(p.d||0))/p.gm:0,
-    gpg:p.gm>0?p.g/p.gm:0,
-    apg:p.gm>0?p.a/p.gm:0
+// ── Overview ─────────────────────────────────────────────────────────────────
+function buildOverview() {
+  const ps = STATS.players.map(p => ({...p,
+    pts: (p.w||0)*2+(p.d||0),
+    ppg: p.gm>0 ? ((p.w||0)*2+(p.d||0))/p.gm : 0,
+    gpg: p.gm>0 ? p.g/p.gm : 0
   }));
-  const active=ps.filter(p=>p.gm>=100);
-  const totalGames=GAMES.length;
-  const years=[...new Set(GAMES.map(g=>g.date?.match(/(\d{4})/)?.[1]).filter(Boolean))].sort();
-  const curYr=years[years.length-1];
-  document.getElementById('mainSubtitle').textContent=
+  // threshold = top third by games, min 20
+  const sortedGm = [...ps].sort((a,b)=>b.gm-a.gm);
+  const thresh = Math.max(20, sortedGm[Math.floor(sortedGm.length/3)]?.gm||20);
+  const active = ps.filter(p => p.gm >= thresh);
+
+  const totalGames = GAMES.length;
+  const years = [...new Set(GAMES.map(g=>g.date?.match(/(\d{4})/)?.[1]).filter(Boolean))].sort();
+  const curYr = years[years.length-1];
+  document.getElementById('mainSubtitle').textContent =
     `${years[0]}–${curYr} | ${totalGames} משחקים | ${STATS.players.length} שחקנים`;
 
-  const top3html=(arr,key,fmt)=>arr.sort((a,b)=>b[key]-a[key]).slice(0,3).map((p,i)=>`
+  const top3 = (arr, key, fmt) => arr.sort((a,b)=>b[key]-a[key]).slice(0,3).map((p,i)=>`
     <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:3px">
-      <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${p.name}</span>
+      <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(p.name)}</span>
       <b style="color:#fbbf24">${fmt(p[key])}</b>
     </div>`).join('');
 
-  // ---- Current year heroes ----
-  document.getElementById('curYearTitle').textContent=`🗓️ הישגי ${curYr} — שנה נוכחית`;
-  const cyrData=STATS.byYear.filter(e=>e.yr===curYr);
-  const cyrScorers=[...cyrData].sort((a,b)=>b.g-a.g).slice(0,3);
-  const cyrAssists=[...cyrData].sort((a,b)=>b.a-a.a).slice(0,3);
-  const cyrWins=[...cyrData].sort((a,b)=>(b.w/Math.max(b.gm,1))-(a.w/Math.max(a.gm,1))).filter(p=>p.gm>=3).slice(0,3);
-  const cyrMVP=[...(STATS.bonusByYear||[])].filter(b=>b.yr===curYr&&b.mvp>0).sort((a,b)=>b.mvp-a.mvp).slice(0,3);
-  const cyrWG=[...(STATS.bonusByYear||[])].filter(b=>b.yr===curYr&&b.wg>0).sort((a,b)=>b.wg-a.wg).slice(0,3);
-
-  const cyrRow=(arr,fmt)=>arr.length?arr.map((p,i)=>`
+  // current year
+  document.getElementById('curYearTitle').textContent = `🗓️ הישגי ${curYr} — שנה נוכחית`;
+  const cyrData   = STATS.byYear.filter(e => e.yr===curYr);
+  const cyrScorers = [...cyrData].sort((a,b)=>b.g-a.g).slice(0,3);
+  const cyrAssists = [...cyrData].sort((a,b)=>b.a-a.a).slice(0,3);
+  const cyrMVP = [...(STATS.bonusByYear||[])].filter(b=>b.yr===curYr&&b.mvp>0).sort((a,b)=>b.mvp-a.mvp).slice(0,3);
+  const cyrWG  = [...(STATS.bonusByYear||[])].filter(b=>b.yr===curYr&&b.wg>0).sort((a,b)=>b.wg-a.wg).slice(0,3);
+  const cyrRow = (arr, fmt) => arr.length ? arr.map((p,i)=>`
     <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:3px">
-      <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${p.name}</span>
+      <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(p.name)}</span>
       <b style="color:#fbbf24">${fmt(p)}</b>
-    </div>`).join(''):'<div style="color:#475569;font-size:.75rem">אין נתונים</div>';
+    </div>`).join('') : '<div style="color:#475569;font-size:.75rem">אין נתונים</div>';
 
-  const cyrHeroes=[
-    {icon:'⚽',label:`מלך שערים ${curYr}`,content:cyrRow(cyrScorers,p=>`${p.g} שע׳`)},
-    {icon:'🅰️',label:`מלך בישולים ${curYr}`,content:cyrRow(cyrAssists,p=>`${p.a} בישול`)},
-    {icon:'🏅',label:`MVP ${curYr}`,content:cyrMVP.length?cyrRow(cyrMVP,p=>`${p.mvp} MVP`):'<div style="color:#475569;font-size:.75rem">טרם נקבע</div>'},
-    {icon:'⚡',label:`שניצ׳ ${curYr}`,content:cyrWG.length?cyrRow(cyrWG,p=>`${p.wg} שניצ׳`):'<div style="color:#475569;font-size:.75rem">טרם נקבע</div>'},
-  ];
-  document.getElementById('curYearHeroes').innerHTML=cyrHeroes.map(h=>`
+  document.getElementById('curYearHeroes').innerHTML = [
+    {icon:'⚽', label:`מלך שערים ${curYr}`, content:cyrRow(cyrScorers,p=>`${p.g} שע׳`)},
+    {icon:'🅰️', label:`מלך בישולים ${curYr}`, content:cyrRow(cyrAssists,p=>`${p.a} בישול`)},
+    {icon:'🏅', label:`MVP ${curYr}`, content:cyrMVP.length?cyrRow(cyrMVP,p=>`${p.mvp} MVP`):'<div style="color:#475569;font-size:.75rem">טרם נקבע</div>'},
+    {icon:'⚡', label:`שניצ׳ ${curYr}`, content:cyrWG.length?cyrRow(cyrWG,p=>`${p.wg} שניצ׳`):'<div style="color:#475569;font-size:.75rem">טרם נקבע</div>'},
+  ].map(h=>`
     <div class="hero-card">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
         <span style="font-size:1.5rem">${h.icon}</span>
@@ -611,19 +625,16 @@ function buildOverview(){
       ${h.content}
     </div>`).join('');
 
-  // ---- All-time heroes ----
-  const heroes=[
-    {icon:'🏆',label:'מובילי נקודות',content:top3html([...active],'pts',v=>v+' נק\'')},
-    {icon:'⚽',label:'מלכי השערים',content:top3html([...active],'g',v=>v+' ש\'')},
-    {icon:'🎯',label:'אחוז ניצחון',content:[...active].sort((a,b)=>(b.w/b.gm)-(a.w/a.gm)).slice(0,3).map((p,i)=>`
+  document.getElementById('heroes').innerHTML = [
+    {icon:'🏆', label:'מובילי נקודות',       content:top3([...active],'pts',v=>v+' נק\'')},
+    {icon:'⚽', label:'מלכי השערים',          content:top3([...active],'g',v=>v+' ש\'')},
+    {icon:'🎯', label:'אחוז ניצחון',          content:[...active].sort((a,b)=>(b.w/b.gm)-(a.w/a.gm)).slice(0,3).map((p,i)=>`
       <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:3px">
-        <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${p.name}</span>
+        <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(p.name)}</span>
         <b style="color:#fbbf24">${pct(p.w,p.gm)}%</b>
       </div>`).join('')},
-    {icon:'📈',label:'ממוצע נקודות / משחק',content:top3html([...active],'ppg',v=>r2(v))}
-  ];
-
-  document.getElementById('heroes').innerHTML=heroes.map(h=>`
+    {icon:'📈', label:'ממוצע נקודות / משחק',  content:top3([...active],'ppg',v=>r2(v))},
+  ].map(h=>`
     <div class="hero-card">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
         <span style="font-size:1.5rem">${h.icon}</span>
@@ -633,74 +644,81 @@ function buildOverview(){
     </div>`).join('');
 
   // Charts
-  const gByYear={};
-  GAMES.forEach(g=>{const m=g.date?.match(/(\d{4})/);if(m)gByYear[m[1]]=(gByYear[m[1]]||0)+1;});
-  const yrs=Object.keys(gByYear).sort();
-  newChart('chartYears','bar',yrs,yrs.map(y=>gByYear[y]),'משחקים','#3b82f6');
+  const gByYear = {};
+  GAMES.forEach(g => { const m=g.date?.match(/(\d{4})/); if(m) gByYear[m[1]]=(gByYear[m[1]]||0)+1; });
+  const yrs = Object.keys(gByYear).sort();
+  newChart('chartYears',  'bar', yrs, yrs.map(y=>gByYear[y]), 'משחקים','#3b82f6');
+  newChart('chartScorers','bar', active.sort((a,b)=>b.g-a.g).slice(0,10).map(p=>p.name),
+                                 active.slice(0,10).map(p=>p.g), 'שערים','#fbbf24');
+  const topPts = [...active].sort((a,b)=>b.pts-a.pts).slice(0,10);
+  newChart('chartPoints', 'bar', topPts.map(p=>p.name), topPts.map(p=>p.pts), 'נקודות','#10b981');
+  const topW = [...active].sort((a,b)=>(b.w/b.gm)-(a.w/a.gm)).slice(0,10);
+  newChart('chartWinPct', 'bar', topW.map(p=>p.name), topW.map(p=>pct(p.w,p.gm)), '% ניצחון','#3b82f6', 100);
+  const topA = [...active].sort((a,b)=>b.a-a.a).slice(0,10);
+  newChart('chartAssists','bar', topA.map(p=>p.name), topA.map(p=>p.a), 'בישולים','#8b5cf6');
 
-  const top10=[...active].sort((a,b)=>b.g-a.g).slice(0,10);
-  newChart('chartScorers','bar',top10.map(p=>p.name),top10.map(p=>p.g),'שערים','#fbbf24');
-
-  const topPts=[...active].sort((a,b)=>b.pts-a.pts).slice(0,10);
-  newChart('chartPoints','bar',topPts.map(p=>p.name),topPts.map(p=>p.pts),'נקודות','#10b981');
-
-  const topW=[...active].sort((a,b)=>(b.w/b.gm)-(a.w/a.gm)).slice(0,10);
-  newChart('chartWinPct','bar',topW.map(p=>p.name),topW.map(p=>pct(p.w,p.gm)),'% ניצחון','#3b82f6',100);
-
-  const topA=[...active].sort((a,b)=>b.a-a.a).slice(0,10);
-  newChart('chartAssists','bar',topA.map(p=>p.name),topA.map(p=>p.a),'בישולים','#8b5cf6');
+  // Top rivals
+  const rivals = [...STATS.rivals].filter(r=>r.t>=15).sort((a,b)=>b.t-a.t).slice(0,10);
+  document.getElementById('topRivalsOverview').innerHTML = rivals.length ? rivals.map(r => {
+    const aW=r.fw, bW=r.t-r.fw-r.d;
+    const col = aW>bW?'#10b981':aW<bW?'#ef4444':'#fbbf24';
+    return `<div class="pair-row">
+      <span style="flex:1">${pl(r.p1)} <span style="color:#475569;font-size:.7rem">vs</span> ${pl(r.p2)}</span>
+      <span>
+        <span class="chip chip-blue">${r.t} מ׳</span>
+        <span class="chip" style="background:#0f172a;color:${col}">${aW}:${bW}</span>
+      </span>
+    </div>`;
+  }).join('') : '<div style="color:#475569;padding:8px">אין מספיק נתונים</div>';
 }
 
-function newChart(id,type,labels,data,label,color,max){
-  new Chart(document.getElementById(id),{type,data:{labels,datasets:[{label,data,backgroundColor:color,borderRadius:4}]},
-    options:{plugins:{legend:{display:false}},scales:{
-      y:{max,grid:{color:'#334155'},ticks:{color:'#94a3b8'}},
-      x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',font:{size:9}}}
-    },maintainAspectRatio:false}});
+function newChart(id, type, labels, data, label, color, max) {
+  new Chart(document.getElementById(id), {type, data:{labels, datasets:[{label, data, backgroundColor:color, borderRadius:4}]},
+    options:{plugins:{legend:{display:false}}, scales:{
+      y:{max, grid:{color:'#334155'}, ticks:{color:'#94a3b8'}},
+      x:{grid:{color:'#334155'}, ticks:{color:'#94a3b8', font:{size:9}}}
+    }, maintainAspectRatio:false}});
 }
 
-// ============ LEADERBOARD ============
+// ── Leaderboard ───────────────────────────────────────────────────────────────
 let lbSortKey='w', lbSortDir=-1;
-let yrSortKey='w', yrSortDir=-1;
-let ksrSortKey='rating', ksrSortDir=-1;
-let _ksrRows=[], _ksrLatestYr='';
-function buildLeaderboard(){
-  const names=[...STATS.players].sort((a,b)=>b.gm-a.gm).map(p=>p.name);
-  document.getElementById('h2hA').innerHTML=names.map(n=>`<option>${n}</option>`).join('');
-  document.getElementById('h2hB').innerHTML=names.map(n=>`<option>${n}</option>`).join('');
-  document.getElementById('h2hB').selectedIndex=1;
-  document.getElementById('partnerSearch').innerHTML=names.map(n=>`<option>${n}</option>`).join('');
+function buildLeaderboard() {
+  const names = [...STATS.players].sort((a,b)=>a.name.localeCompare(b.name,'he')).map(p=>p.name);
+  document.getElementById('h2hA').innerHTML = names.map(n=>`<option>${n}</option>`).join('');
+  document.getElementById('h2hB').innerHTML = names.map(n=>`<option>${n}</option>`).join('');
+  document.getElementById('h2hB').selectedIndex = 1;
   filterTable();
 }
-function filterTable(){
-  const q=(document.getElementById('searchPlayer').value||'').trim();
-  const min=parseInt(document.getElementById('minGames').value)||1;
-  const rows=STATS.players
-    .filter(p=>p.gm>=min&&(q===''||p.name.includes(q)))
-    .map(p=>({...p,
-      pts:(p.w||0)*2+(p.d||0),
-      ppg:p.gm>0?((p.w||0)*2+(p.d||0))/p.gm:0,
-      winpct:p.gm>0?p.w/p.gm:0,
-      gpg:p.gm>0?p.g/p.gm:0,
-      apg:p.gm>0?p.a/p.gm:0,
+function filterTable() {
+  const q   = (document.getElementById('searchPlayer').value||'').trim();
+  const min = parseInt(document.getElementById('minGames').value)||1;
+  const rows = STATS.players
+    .filter(p => p.gm>=min && (q===''||p.name.includes(q)))
+    .map(p => ({...p,
+      pts:    (p.w||0)*2+(p.d||0),
+      ppg:    p.gm>0?((p.w||0)*2+(p.d||0))/p.gm:0,
+      winpct: p.gm>0?p.w/p.gm:0,
+      gpg:    p.gm>0?p.g/p.gm:0,
+      apg:    p.gm>0?p.a/p.gm:0,
       contrib:p.gm>0?(p.g+p.a)/p.gm:0,
-      mvp_n:(BONUS[p.name]||{}).mvp||0,
-      wg_n:(BONUS[p.name]||{}).wg||0
+      mvp_n:  (BONUS[p.name]||{}).mvp||0,
+      wg_n:   (BONUS[p.name]||{}).wg||0,
     }));
-  rows.sort((a,b)=>{
-    if(lbSortKey==='w'){
+  rows.sort((a,b) => {
+    if (lbSortKey==='w') {
       let d=b.w-a.w; if(d!==0) return lbSortDir*d;
       d=b.pts-a.pts; if(d!==0) return lbSortDir*d;
       return lbSortDir*(b.g-a.g);
     }
     return lbSortDir*(b[lbSortKey]-a[lbSortKey]);
   });
-  document.getElementById('lbBody').innerHTML=rows.map((p,i)=>`
+  document.getElementById('lbBody').innerHTML = rows.map((p,i) => `
     <tr>
-      <td>${i+1}. ${p.name}</td>
+      <td>${i+1}. ${pl(p.name)}</td>
       <td>${p.gm}</td>
       <td style="font-weight:bold;color:#10b981">${p.w}</td>
       <td>${pct(p.w,p.gm)}%</td>
+      <td>${skHtml(p.name)}</td>
       <td style="color:#fbbf24">${p.pts}</td>
       <td>${r2(p.ppg)}</td>
       <td>${p.g}</td>
@@ -712,457 +730,222 @@ function filterTable(){
       <td style="color:#10b981;font-weight:bold">${p.wg_n||'-'}</td>
     </tr>`).join('');
 }
-function sortTable(key){
-  if(lbSortKey===key) lbSortDir*=-1; else{lbSortKey=key;lbSortDir=-1;}
+function sortTable(key) {
+  if (lbSortKey===key) lbSortDir*=-1; else { lbSortKey=key; lbSortDir=-1; }
   filterTable();
 }
 
-// ============ KOSHER (RATING) ============
-// score for a single year's stats + bonus: win%×40 + g/gm×20 + a/gm×10 + mvp/gm×30 + wg/gm×20
-function yrScore(yd, bonus){
-  if(!yd||yd.gm<1) return null;
-  const b=bonus||{mvp:0,wg:0};
-  return (yd.w/yd.gm)*40 + (yd.g/yd.gm)*20 + (yd.a/yd.gm)*10
-        + (b.mvp/yd.gm)*30 + (b.wg/yd.gm)*20;
+// ── MVP leaderboard ───────────────────────────────────────────────────────────
+function buildMVPLeaderboard() {
+  const rows = [...(STATS.bonus||[])].filter(b=>b.mvp>0||b.wg>0).sort((a,b)=>b.mvp-a.mvp||b.wg-a.wg);
+  if (!rows.length) { document.getElementById('mvpLeaderboard').innerHTML='<p style="color:#64748b;padding:10px">אין נתונים</p>'; return; }
+  document.getElementById('mvpLeaderboard').innerHTML = `
+    <table><thead><tr>
+      <th>#</th><th style="text-align:right">שחקן</th>
+      <th style="color:#fbbf24">🏅 MVP</th>
+      <th style="color:#10b981">⚡ שניצ׳</th>
+    </tr></thead>
+    <tbody>${rows.map((b,i)=>{
+      const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+      return `<tr>
+        <td>${medal||i+1}</td>
+        <td style="text-align:right;font-weight:bold">${pl(b.name)}</td>
+        <td style="color:#fbbf24;font-weight:bold">${b.mvp||'-'}</td>
+        <td style="color:#10b981;font-weight:bold">${b.wg||'-'}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
 }
-function buildKosher(){
-  const min=parseInt(document.getElementById('kosherMinGames').value)||5;
-  const byYearMap={};
-  STATS.byYear.forEach(e=>{
-    if(!byYearMap[e.name]) byYearMap[e.name]={};
-    byYearMap[e.name][e.yr]=e;
+
+// ── Kosher ────────────────────────────────────────────────────────────────────
+let ksrSortKey='rating', ksrSortDir=-1, _ksrRows=[];
+function yrScore(yd, bonus) {
+  if (!yd || yd.gm<1) return null;
+  const b = bonus||{mvp:0,wg:0};
+  return (yd.w/yd.gm)*40 + (yd.g/yd.gm)*20 + (yd.a/yd.gm)*10 + (b.mvp/yd.gm)*30 + (b.wg/yd.gm)*20;
+}
+function buildKosher() {
+  const min = parseInt(document.getElementById('kosherMinGames').value)||5;
+  const ksrRange = KSR_YEARS.length>=2
+    ? `${KSR_YEARS[0].slice(-2)}-${KSR_YEARS[KSR_YEARS.length-1].slice(-2)}`
+    : KSR_YEARS[0]||'';
+  document.getElementById('kosherFormula').textContent =
+    `ניקוד = ממוצע משוקלל שנים ${KSR_YEARS.join('/')} | משקלות: ${KSR_YEARS.map((y,i)=>`${y}×${KSR_WEIGHTS[y]}`).join(' · ')} | נוסחה: %נצח×40 + ש/מ×20 + ב/מ×10 + MVP/מ×30 + שניצ׳/מ×20`;
+
+  const byYearMap = {};
+  STATS.byYear.forEach(e => {
+    if (!byYearMap[e.name]) byYearMap[e.name] = {};
+    byYearMap[e.name][e.yr] = e;
   });
 
-  _ksrLatestYr=KSR_YEARS[KSR_YEARS.length-1];
-
-  _ksrRows=STATS.players
-    .filter(p=>{
-      // must have played in at least one כושר year
-      const yrs=byYearMap[p.name]||{};
-      const recentGm=KSR_YEARS.reduce((s,y)=>s+(yrs[y]?yrs[y].gm:0),0);
-      return recentGm>=min;
+  _ksrRows = STATS.players
+    .filter(p => {
+      const yrs = byYearMap[p.name]||{};
+      return KSR_YEARS.reduce((s,y) => s+(yrs[y]?yrs[y].gm:0), 0) >= min;
     })
-    .map(p=>{
-      const yrs=byYearMap[p.name]||{};
-      const bonusYrs=BONUS_BY_YEAR[p.name]||{};
-
-      // weighted rating over כושר years
-      let wSum=0, wTot=0;
-      let recentGm=0,recentW=0,recentG=0,recentA=0,recentMvp=0,recentWg=0;
-      KSR_YEARS.forEach(y=>{
+    .map(p => {
+      const yrs = byYearMap[p.name]||{};
+      const bonusYrs = BONUS_BY_YEAR[p.name]||{};
+      let wSum=0,wTot=0,rGm=0,rW=0,rG=0,rA=0,rMvp=0,rWg=0;
+      KSR_YEARS.forEach(y => {
         const yd=yrs[y]; if(!yd||yd.gm<1) return;
         const bns=bonusYrs[y]||{mvp:0,wg:0};
-        const sc=yrScore(yd,bns);
-        const wt=KSR_WEIGHTS[y]||1;
+        const sc=yrScore(yd,bns), wt=KSR_WEIGHTS[y]||1;
         wSum+=sc*wt; wTot+=wt;
-        recentGm+=yd.gm; recentW+=yd.w;
-        recentG+=yd.g;   recentA+=yd.a;
-        recentMvp+=(bns.mvp||0); recentWg+=(bns.wg||0);
+        rGm+=yd.gm; rW+=yd.w; rG+=yd.g; rA+=yd.a;
+        rMvp+=(bns.mvp||0); rWg+=(bns.wg||0);
       });
-      const rating=wTot>0?wSum/wTot:0;
-
-      // trend: compare 2026 vs 2025 year scores
-      const sc26=yrScore(yrs['2026'],bonusYrs['2026']);
-      const sc25=yrScore(yrs['2025'],bonusYrs['2025']);
+      const rating = wTot>0 ? wSum/wTot : 0;
+      const lastY=KSR_YEARS[KSR_YEARS.length-1], prevY=KSR_YEARS[KSR_YEARS.length-2];
+      const sc2=yrScore(yrs[lastY],bonusYrs[lastY]), sc1=yrScore(yrs[prevY],bonusYrs[prevY]);
       let trend='same';
-      if(sc26!==null&&sc25!==null){
-        if(sc26>sc25*1.05) trend='up';
-        else if(sc26<sc25*0.95) trend='down';
-      } else if(sc26!==null&&sc25===null){
-        trend='up';
-      } else if(sc26===null&&sc25!==null){
-        trend='down';
-      }
-
-      const latestYd=yrs['2026']||yrs['2025']||yrs['2024'];
-      return {...p,
-        rating, trend,
-        recentGm, recentW,
-        wp: recentGm>0?recentW/recentGm:0,
-        gp: recentGm>0?recentG/recentGm:0,
-        ap: recentGm>0?recentA/recentGm:0,
-        mvp_n: recentMvp,
-        wg_n:  recentWg,
-        latestGm: latestYd?latestYd.gm:0,
-        yr26gm: yrs['2026']?yrs['2026'].gm:0,
-        yr25gm: yrs['2025']?yrs['2025'].gm:0,
-        yr24gm: yrs['2024']?yrs['2024'].gm:0,
-      };
+      if (sc2!==null&&sc1!==null) { if(sc2>sc1*1.05) trend='up'; else if(sc2<sc1*0.95) trend='down'; }
+      else if (sc2!==null&&sc1===null) trend='up';
+      else if (sc2===null&&sc1!==null) trend='down';
+      const gmByYr = {};
+      KSR_YEARS.forEach(y => gmByYr['yr'+y] = yrs[y]?yrs[y].gm:0);
+      return {...p, rating, trend, recentGm:rGm, recentW:rW,
+        wp:rGm>0?rW/rGm:0, gp:rGm>0?rG/rGm:0, ap:rGm>0?rA/rGm:0,
+        mvp_n:rMvp, wg_n:rWg, ...gmByYr};
     });
   renderKosherTable();
 }
-function sortKosher(key){
-  if(ksrSortKey===key) ksrSortDir*=-1; else{ksrSortKey=key;ksrSortDir=-1;}
+function sortKosher(key) {
+  if (ksrSortKey===key) ksrSortDir*=-1; else { ksrSortKey=key; ksrSortDir=-1; }
   renderKosherTable();
 }
-function renderKosherTable(){
-  const rows=[..._ksrRows].sort((a,b)=>{
+function renderKosherTable() {
+  const rows = [..._ksrRows].sort((a,b) => {
     const va=a[ksrSortKey]??0, vb=b[ksrSortKey]??0;
-    if(typeof va==='string') return ksrSortDir*(va<vb?-1:va>vb?1:0);
+    if (typeof va==='string') return ksrSortDir*(va<vb?-1:va>vb?1:0);
     return ksrSortDir*(vb-va);
   });
-  const maxR=Math.max(...rows.map(r=>r.rating),0.01);
-  const trendIcon=t=>t==='up'?'<span class="trend-up">↑</span>':t==='down'?'<span class="trend-down">↓</span>':'<span class="trend-same">→</span>';
-  const thK=(key,label)=>`<th onclick="sortKosher('${key}')" style="${ksrSortKey===key?'color:#fff':''}">${label}${ksrSortKey===key?(ksrSortDir===-1?' ▼':' ▲'):''}</th>`;
-
-  document.getElementById('kosherTable').innerHTML=`
-    <table>
-      <thead><tr>
-        <th>#</th>
-        <th onclick="sortKosher('name')" style="text-align:right;${ksrSortKey==='name'?'color:#fff':''}">שחקן${ksrSortKey==='name'?(ksrSortDir===-1?' ▼':' ▲'):''}</th>
-        ${thK('recentGm',"מ' 24-26")}
-        ${thK('yr26gm','2026')}
-        ${thK('yr25gm','2025')}
-        ${thK('yr24gm','2024')}
-        <th>מגמה</th>
-        ${thK('wp','%נצח')}
-        ${thK('gp','ש/מ')}
-        ${thK('ap','ב/מ')}
-        ${thK('mvp_n','MVP')}
-        ${thK('wg_n','שניצ׳')}
-        ${thK('rating','ניקוד ★')}
-      </tr></thead>
-      <tbody>${rows.map((p,i)=>`
-        <tr>
-          <td>${i+1}</td>
-          <td style="text-align:right;font-weight:bold">${p.name}</td>
-          <td>${p.recentGm}</td>
-          <td style="color:#64748b">${p.yr26gm||'-'}</td>
-          <td style="color:#475569">${p.yr25gm||'-'}</td>
-          <td style="color:#475569">${p.yr24gm||'-'}</td>
-          <td style="text-align:center">${trendIcon(p.trend)}</td>
-          <td>${pct(p.recentW,p.recentGm)}%</td>
-          <td>${r2(p.gp)}</td>
-          <td>${r2(p.ap)}</td>
-          <td style="color:#fbbf24;font-weight:bold">${p.mvp_n||'-'}</td>
-          <td style="color:#10b981;font-weight:bold">${p.wg_n||'-'}</td>
-          <td>
-            <b style="color:#fbbf24;font-size:.9rem">${r2(p.rating)}</b>
-            <div class="bar-wrap"><div class="bar bar-gold" style="width:${Math.round(100*p.rating/maxR)}%"></div></div>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>`;
+  const maxR = Math.max(...rows.map(r=>r.rating), 0.01);
+  const ti   = t => t==='up'?'<span class="trend-up">↑</span>':t==='down'?'<span class="trend-down">↓</span>':'<span class="trend-same">→</span>';
+  const thK  = (key,label) => `<th onclick="sortKosher('${key}')" style="${ksrSortKey===key?'color:#fff':''}">${label}${ksrSortKey===key?(ksrSortDir===-1?' ▼':' ▲'):''}</th>`;
+  document.getElementById('kosherTable').innerHTML = `
+    <table><thead><tr>
+      <th>#</th>
+      <th onclick="sortKosher('name')" style="text-align:right;${ksrSortKey==='name'?'color:#fff':''}">שחקן${ksrSortKey==='name'?(ksrSortDir===-1?' ▼':' ▲'):''}</th>
+      ${thK('recentGm', 'מ׳ '+KSR_YEARS.map(y=>y.slice(-2)).join('-'))}
+      ${KSR_YEARS.map(y=>thK('yr'+y, y)).join('')}
+      <th>מגמה</th>
+      ${thK('wp','%נצח')}
+      ${thK('gp','ש/מ')}
+      ${thK('ap','ב/מ')}
+      ${thK('mvp_n','MVP')}
+      ${thK('wg_n','שניצ׳')}
+      <th>רצף</th>
+      ${thK('rating','ניקוד ★')}
+    </tr></thead>
+    <tbody>${rows.map((p,i)=>`
+      <tr>
+        <td>${i+1}</td>
+        <td style="text-align:right;font-weight:bold">${pl(p.name)}</td>
+        <td>${p.recentGm}</td>
+        ${KSR_YEARS.map(y=>`<td style="color:#475569">${p['yr'+y]||'-'}</td>`).join('')}
+        <td style="text-align:center">${ti(p.trend)}</td>
+        <td>${pct(p.recentW,p.recentGm)}%</td>
+        <td>${r2(p.gp)}</td>
+        <td>${r2(p.ap)}</td>
+        <td style="color:#fbbf24;font-weight:bold">${p.mvp_n||'-'}</td>
+        <td style="color:#10b981;font-weight:bold">${p.wg_n||'-'}</td>
+        <td>${skHtml(p.name)}</td>
+        <td>
+          <b style="color:#fbbf24;font-size:.9rem">${r2(p.rating)}</b>
+          <div class="bar-wrap"><div class="bar bar-gold" style="width:${Math.round(100*p.rating/maxR)}%"></div></div>
+        </td>
+      </tr>`).join('')}
+    </tbody></table>`;
 }
 
-// ============ MVP LEADERBOARD ============
-function buildMVPLeaderboard(){
-  const rows=[...(STATS.bonus||[])].filter(b=>b.mvp>0||b.wg>0)
-    .sort((a,b)=>b.mvp-a.mvp||b.wg-a.wg);
-  if(!rows.length){document.getElementById('mvpLeaderboard').innerHTML='<p style="color:#64748b;padding:10px">אין נתונים</p>';return;}
-  document.getElementById('mvpLeaderboard').innerHTML=`
-    <table>
-      <thead><tr>
-        <th>#</th>
-        <th style="text-align:right">שחקן</th>
-        <th style="color:#fbbf24">🏅 MVP</th>
-        <th style="color:#10b981">⚡ שניצ׳</th>
-      </tr></thead>
-      <tbody>${rows.map((b,i)=>{
-        const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
-        return `<tr>
-          <td>${medal||i+1}</td>
-          <td style="text-align:right;font-weight:bold">${b.name}</td>
-          <td style="color:#fbbf24;font-weight:bold">${b.mvp||'-'}</td>
-          <td style="color:#10b981;font-weight:bold">${b.wg||'-'}</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table>`;
-}
-
-// ============ HEAD TO HEAD ============
-function calcH2H(){
-  const pA=document.getElementById('h2hA').value;
-  const pB=document.getElementById('h2hB').value;
-  if(pA===pB){document.getElementById('h2hResult').innerHTML='<p style="color:#ef4444;padding:12px">בחר שני שחקנים שונים</p>';return;}
+// ── H2H ───────────────────────────────────────────────────────────────────────
+function calcH2H() {
+  const pA=document.getElementById('h2hA').value, pB=document.getElementById('h2hB').value;
+  if (pA===pB) { document.getElementById('h2hResult').innerHTML='<p style="color:#ef4444;padding:12px">בחר שני שחקנים שונים</p>'; return; }
   const sorted=[pA,pB].sort();
   const rv=STATS.rivals.find(r=>r.p1===sorted[0]&&r.p2===sorted[1]);
-
   const aIsFirst=sorted[0]===pA;
-  const aWins=rv ? (aIsFirst ? rv.fw : rv.t-rv.fw-rv.d) : 0;
-  const bWins=rv ? (aIsFirst ? rv.t-rv.fw-rv.d : rv.fw) : 0;
-  const draws=rv ? rv.d : 0;
-  const total=rv ? rv.t : 0;
-
-  const aG=rv ? (aIsFirst ? rv.p1g : rv.p2g) : 0;
-  const aAs=rv ? (aIsFirst ? rv.p1a : rv.p2a) : 0;
-  const bG=rv ? (aIsFirst ? rv.p2g : rv.p1g) : 0;
-  const bAs=rv ? (aIsFirst ? rv.p2a : rv.p1a) : 0;
-
-  const sA=STATS.players.find(p=>p.name===pA);
-  const sB=STATS.players.find(p=>p.name===pB);
+  const aW=rv?(aIsFirst?rv.fw:rv.t-rv.fw-rv.d):0;
+  const bW=rv?(aIsFirst?rv.t-rv.fw-rv.d:rv.fw):0;
+  const draws=rv?rv.d:0, total=rv?rv.t:0;
+  const aG=rv?(aIsFirst?rv.p1g:rv.p2g):0, aAs=rv?(aIsFirst?rv.p1a:rv.p2a):0;
+  const bG=rv?(aIsFirst?rv.p2g:rv.p1g):0, bAs=rv?(aIsFirst?rv.p2a:rv.p1a):0;
+  const sA=STATS.players.find(p=>p.name===pA), sB=STATS.players.find(p=>p.name===pB);
   const pair=STATS.pairs.find(p=>p.p1===sorted[0]&&p.p2===sorted[1]);
 
+  if (!rv) {
+    document.getElementById('h2hResult').innerHTML=`<div style="text-align:center;padding:20px;color:#64748b">
+      ⚠️ לא נמצאו מפגשים ישירים בין ${pA} ל-${pB}</div>`;
+    return;
+  }
   let html=`
     <div class="vs-wrap">
       <div class="vs-player">
-        <div class="vs-name">${pA}</div>
-        <div class="vs-wins" style="color:#3b82f6">${aWins}</div>
+        <div class="vs-name" onclick="openProfile(${JSON.stringify(pA)})">${pA}</div>
+        <div class="vs-wins" style="color:#3b82f6">${aW}</div>
         <div class="vs-label">ניצחונות מולו</div>
         <div style="margin-top:6px;font-size:.76rem;color:#94a3b8">${aG} ש׳ | ${aAs} ב׳</div>
       </div>
-      <div class="vs-mid">
-        ⚔️<br>
-        <span style="font-size:.78rem;color:#64748b">${total} מפגשים ישירים</span><br>
+      <div class="vs-mid">⚔️<br>
+        <span style="font-size:.78rem;color:#64748b">${total} מפגשים</span><br>
         <span style="font-size:.72rem;color:#475569">${draws} תיקו</span>
       </div>
       <div class="vs-player">
-        <div class="vs-name">${pB}</div>
-        <div class="vs-wins" style="color:#ef4444">${bWins}</div>
+        <div class="vs-name" onclick="openProfile(${JSON.stringify(pB)})">${pB}</div>
+        <div class="vs-wins" style="color:#ef4444">${bW}</div>
         <div class="vs-label">ניצחונות מולו</div>
         <div style="margin-top:6px;font-size:.76rem;color:#94a3b8">${bG} ש׳ | ${bAs} ב׳</div>
       </div>
     </div>`;
-
-  if(pair){
-    html+=`<div style="text-align:center;margin:10px 0;font-size:.84rem;color:#94a3b8">
-      🤝 כשמשחקים <b style="color:#fbbf24">ביחד</b>: ${pair.t} משחקים —
-      <b style="color:#10b981">${pair.w} ניצחונות</b> |
-      <span style="color:#ef4444">${pair.l} הפסדים</span> |
-      ${pct(pair.w,pair.t)}% ניצחון
-    </div>`;
-  }
-
-  if(!rv){
-    html=`<div style="text-align:center;padding:20px;color:#64748b">
-      ⚠️ לא נמצאו מפגשים ישירים בין ${pA} ל-${pB}
-    </div>`;
-  }
-
-  if(sA&&sB){
-    html+=`<div class="grid2" style="margin-top:10px;gap:8px">
-      ${playerMiniCard(sA)} ${playerMiniCard(sB)}
-    </div>`;
-  }
+  if (pair) html+=`<div style="text-align:center;margin:10px 0;font-size:.84rem;color:#94a3b8">
+    🤝 כשמשחקים <b style="color:#fbbf24">ביחד</b>: ${pair.t} משחקים —
+    <b style="color:#10b981">${pair.w} ניצחונות</b> |
+    <span style="color:#ef4444">${pair.l} הפסדים</span> |
+    ${pct(pair.w,pair.t)}% ניצחון</div>`;
+  if (sA&&sB) html+=`<div class="grid2" style="margin-top:10px;gap:8px">
+    ${miniCard(sA)}${miniCard(sB)}</div>`;
   document.getElementById('h2hResult').innerHTML=html;
 }
-function playerMiniCard(p){
-  const pts=(p.w||0)*2+(p.d||0);
-  const b=BONUS[p.name]||{mvp:0,wg:0};
+function miniCard(p) {
+  const pts=(p.w||0)*2+(p.d||0), b=BONUS[p.name]||{mvp:0,wg:0};
   return `<div class="card" style="font-size:.8rem">
-    <div style="font-size:.95rem;font-weight:bold;color:#fbbf24;margin-bottom:6px">${p.name}</div>
-    <div>משחקים כלל: <b>${p.gm}</b></div>
-    <div>ניצחונות: <b>${p.w}</b> (${pct(p.w,p.gm)}%)</div>
-    <div>נקודות: <b>${pts}</b> (${r2(pts/p.gm)}/מ׳)</div>
-    <div>שערים: <b>${p.g}</b> (${r2(p.g/p.gm)}/מ׳)</div>
-    <div>בישולים: <b>${p.a}</b> (${r2(p.a/p.gm)}/מ׳)</div>
+    <div style="font-size:.95rem;font-weight:bold;color:#fbbf24;margin-bottom:6px;cursor:pointer" onclick="openProfile(${JSON.stringify(p.name)})">${p.name}</div>
+    <div>משחקים: <b>${p.gm}</b> | ניצח: <b>${p.w}</b> (${pct(p.w,p.gm)}%)</div>
+    <div>נקודות: <b>${pts}</b> | שערים: <b>${p.g}</b> | בישולים: <b>${p.a}</b></div>
     ${b.mvp?`<div>MVP: <b style="color:#fbbf24">${b.mvp}</b></div>`:''}
     ${b.wg?`<div>שניצ׳: <b style="color:#10b981">${b.wg}</b></div>`:''}
   </div>`;
 }
 
-// ============ PARTNERS ============
-function buildPartners(){
-  const topW=getTopPairs('w',15,15);
-  const topL=getTopPairs('l',15,15);
-
-  document.getElementById('bestPairsWins').innerHTML=topW.map((p,i)=>`
-    <div class="pair-row">
-      <span class="pair-names">${i+1}. ${p.p1} + ${p.p2}</span>
-      <span>
-        <span class="chip chip-green">${p.w} נצח׳</span>
-        <span class="chip chip-orange">${pct(p.w,p.t)}%</span>
-        <span class="chip chip-blue">${p.t} מ׳</span>
-        <span class="chip" style="background:#1a2a1a;color:#6ee7b7">${p.g||0} ש׳</span>
-      </span>
-    </div>`).join('');
-
-  document.getElementById('worstPairsLosses').innerHTML=topL.map((p,i)=>`
-    <div class="pair-row">
-      <span class="pair-names">${i+1}. ${p.p1} + ${p.p2}</span>
-      <span>
-        <span class="chip chip-red">${p.l} הפס׳</span>
-        <span class="chip chip-orange">${pct(p.l,p.t)}% הפסד</span>
-        <span class="chip chip-blue">${p.t} מ׳</span>
-      </span>
-    </div>`).join('');
+// ── Last game ─────────────────────────────────────────────────────────────────
+function buildLastGame() {
+  const dates = [...new Set(GAMES.map(g=>g.date))]
+    .sort((a,b) => parseDate(b) - parseDate(a));  // newest first
+  document.getElementById('gameDateSel').innerHTML = dates.map(d=>`<option value="${d}">${d}</option>`).join('');
+  showSelectedGame();
 }
-
-function showPartnerStats(){
-  const pName=document.getElementById('partnerSearch').value;
-  const myPairs=[...STATS.pairs]
-    .filter(p=>p.p1===pName||p.p2===pName)
-    .map(p=>{const other=p.p1===pName?p.p2:p.p1; return {...p,other};})
-    .sort((a,b)=>(b.t>0&&a.t>0)?(b.w/b.t)-(a.w/a.t):b.t-a.t);  // sort by win%
-  if(!myPairs.length){document.getElementById('partnerResult').innerHTML='<p style="color:#64748b;padding:10px">אין נתונים</p>';return;}
-
-  document.getElementById('partnerResult').innerHTML=`
-    <div class="tbl-wrap" style="max-height:380px">
-      <table>
-        <thead><tr>
-          <th>שותף</th>
-          <th>משחקים</th>
-          <th style="color:#10b981">ניצחונות</th>
-          <th style="color:#ef4444">הפסדים</th>
-          <th>תיקו</th>
-          <th>% ניצחון</th>
-          <th>שערים</th>
-          <th>בישולים</th>
-        </tr></thead>
-        <tbody>${myPairs.map(p=>`
-          <tr>
-            <td>${p.other}</td>
-            <td>${p.t}</td>
-            <td style="color:#10b981;font-weight:bold">${p.w}</td>
-            <td style="color:#ef4444;font-weight:bold">${p.l}</td>
-            <td>${p.t-p.w-p.l}</td>
-            <td>
-              ${pct(p.w,p.t)}%
-              <div class="bar-wrap"><div class="bar bar-green" style="width:${pct(p.w,p.t)}%"></div></div>
-            </td>
-            <td style="color:#fbbf24">${p.g||0}</td>
-            <td style="color:#8b5cf6">${p.a||0}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>`;
+function showSelectedGame() {
+  const date = document.getElementById('gameDateSel').value;
+  const game = [...GAMES].reverse().find(g => g.date===date);
+  const el   = document.getElementById('lastGameDisplay');
+  if (!game) { el.innerHTML='<div class="card">לא נמצא משחק לתאריך זה</div>'; return; }
+  el.innerHTML = `<div class="card" style="margin-bottom:12px;text-align:center">
+    <h2 style="margin:0">📅 ${game.date}</h2>
+  </div>` + renderGameCard(game);
 }
-
-// ============ YEARS ============
-function buildYears(){
-  const yrs=[...new Set(STATS.byYear.map(e=>e.yr))].filter(y=>y&&y!=='unknown').sort();
-  const sel=document.getElementById('yearSelect');
-  sel.innerHTML=yrs.map(y=>`<option value="${y}">${y}</option>`).join('');
-  sel.value=yrs[yrs.length-1];
-  showYearStats();
-}
-function showYearStats(){
-  yrSortKey='w'; yrSortDir=1;
-  renderYearTable();
-}
-function sortYearTable(key){
-  if(yrSortKey===key) yrSortDir*=-1; else{yrSortKey=key;yrSortDir=1;}
-  renderYearTable();
-}
-function renderYearTable(){
-  const yr=document.getElementById('yearSelect').value;
-  const min=parseInt(document.getElementById('yearMinGames').value)||1;
-  const rows=STATS.byYear
-    .filter(e=>e.yr===yr&&e.gm>=min)
-    .map(p=>({...p,
-      pts:(p.w||0)*2+(p.d||0),
-      ppg:p.gm>0?((p.w||0)*2+(p.d||0))/p.gm:0,
-      winpct:p.gm>0?p.w/p.gm:0,
-      gpg:p.gm>0?p.g/p.gm:0,
-      apg:p.gm>0?p.a/p.gm:0
-    }))
-    .sort((a,b)=>{
-      if(yrSortKey==='name') return yrSortDir*(a.name<b.name?-1:a.name>b.name?1:0);
-      return yrSortDir*(b[yrSortKey]-a[yrSortKey]);
-    });
-  const maxPts=Math.max(...rows.map(r=>r.pts),1);
-  const maxG=Math.max(...rows.map(r=>r.g),1);
-  const yrTh=(key,label)=>`<th onclick="sortYearTable('${key}')" style="${yrSortKey===key?'color:#fff':''}">${label}${yrSortKey===key?(yrSortDir===1?' ▼':' ▲'):''}</th>`;
-  document.getElementById('yearTable').innerHTML=`
-    <table>
-      <thead><tr>
-        <th>#</th>
-        ${yrTh('name','שחקן')}
-        ${yrTh('gm','משח׳')}
-        ${yrTh('w','נצח׳')}
-        ${yrTh('winpct','%נצח')}
-        ${yrTh('pts','נק׳')}
-        ${yrTh('ppg','נק/מ')}
-        ${yrTh('g','שע׳')}
-        ${yrTh('a','בישול')}
-      </tr></thead>
-      <tbody>${rows.map((p,i)=>`
-        <tr>
-          <td>${i+1}</td><td>${p.name}</td><td>${p.gm}</td>
-          <td style="font-weight:bold;color:#10b981">${p.w}</td>
-          <td>${pct(p.w,p.gm)}%</td>
-          <td style="color:#fbbf24">${p.pts}
-            <div class="bar-wrap"><div class="bar bar-green" style="width:${Math.round(100*p.pts/maxPts)}%"></div></div>
-          </td>
-          <td>${r2(p.ppg)}</td>
-          <td>${p.g}
-            <div class="bar-wrap"><div class="bar bar-gold" style="width:${Math.round(100*p.g/maxG)}%"></div></div>
-          </td>
-          <td>${p.a}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>`;
-}
-
-// ============ FUN FACTS ============
-function buildFacts(){
-  const topGames=[...GAMES].sort((a,b)=>(b.scoreA+b.scoreB)-(a.scoreA+a.scoreB)).slice(0,3);
-  const bigWins=[...GAMES].sort((a,b)=>Math.abs(b.scoreA-b.scoreB)-Math.abs(a.scoreA-a.scoreB)).slice(0,3);
-  const bestW=getTopPairs('w',3,15);
-  const bestPct=getTopPairs('pct',3,15);
-  const worstL=getTopPairs('l',3,15);
-  const topLineups=getTopLineups(3);
-
-  const ff=(label,val)=>`<div class="fun-fact"><div class="ff-label">${label}</div><div class="ff-val">${val}</div></div>`;
-
-  document.getElementById('factsLeft').innerHTML=`
-    <h3>⚽ משחקים עם הכי הרבה שערים</h3>
-    ${topGames.map((g,i)=>ff(`#${i+1} — ${g.date}`,`${g.scoreA}:${g.scoreB} (סה״כ ${g.scoreA+g.scoreB})`)).join('')}
-    <h3 style="margin-top:12px">🏆 הזוגות עם הכי הרבה ניצחונות</h3>
-    ${bestW.map((p,i)=>ff(`#${i+1} — ${p.t} משחקים יחד`,`${p.p1} + ${p.p2} — ${p.w} ניצחונות`)).join('')}
-    <h3 style="margin-top:12px">🎯 הזוגות היעילים ביותר (%)</h3>
-    ${bestPct.map((p,i)=>ff(`#${i+1} — ${p.t} משחקים יחד`,`${p.p1} + ${p.p2} — ${pct(p.w,p.t)}%`)).join('')}
-  `;
-
-  document.getElementById('factsRight').innerHTML=`
-    <h3>💥 ניצחונות בפער הגדול ביותר</h3>
-    ${bigWins.map((g,i)=>ff(`#${i+1} — ${g.date}`,`${g.scoreA}:${g.scoreB} (פער ${Math.abs(g.scoreA-g.scoreB)})`)).join('')}
-    <h3 style="margin-top:12px">🛡️ ההרכב המנצח המדויק</h3>
-    ${topLineups.map((l,i)=>ff(`#${i+1} — ${l[1]} ניצחונות`,`<span style="font-size:.75rem;line-height:1.5">${l[0]}</span>`)).join('')}
-    <h3 style="margin-top:12px">💔 הזוגות עם הכי הרבה הפסדים</h3>
-    ${worstL.map((p,i)=>ff(`#${i+1} — ${p.t} משחקים יחד`,`${p.p1} + ${p.p2} — ${p.l} הפסדים`)).join('')}
-  `;
-
-  const rivals=[...STATS.rivals].filter(r=>r.t>=20).sort((a,b)=>b.t-a.t).slice(0,15);
-  document.getElementById('rivalsList').innerHTML=`
-    <table>
-      <thead><tr>
-        <th>שחקן א׳</th>
-        <th>מפגשים</th>
-        <th>נצח׳</th>
-        <th style="color:#64748b">VS</th>
-        <th>נצח׳</th>
-        <th>שחקן ב׳</th>
-        <th>תיקו</th>
-        <th>דומיננטיות</th>
-      </tr></thead>
-      <tbody>${rivals.map(r=>{
-        const aW=r.fw, bW=r.t-r.fw-r.d, dom=Math.abs(pct(aW,r.t)-pct(bW,r.t));
-        return `<tr>
-          <td>${r.p1}</td>
-          <td style="color:#fbbf24;font-weight:bold">${r.t}</td>
-          <td style="color:${aW>bW?'#10b981':'#ef4444'};font-weight:bold">${aW}</td>
-          <td style="color:#475569">⚔️</td>
-          <td style="color:${bW>aW?'#10b981':'#ef4444'};font-weight:bold">${bW}</td>
-          <td>${r.p2}</td>
-          <td style="color:#64748b">${r.d}</td>
-          <td><span class="chip chip-orange">${dom}% הפרש</span></td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table>`;
-}
-
-// ============ LAST GAME ============
-function renderGameCard(game){
-  const dateStr = game.date || '';
-  const sA = game.scoreA ?? '?', sB = game.scoreB ?? '?';
-  const winner = sA > sB ? 'A' : sB > sA ? 'B' : 'X';
-  function teamRows(players){
-    return (players||[]).map(p=>{
-      const g = p.goals||0, a = p.assists||0;
-      const chips = [];
-      if(g) chips.push(`<span class="chip chip-green">${g}⚽</span>`);
-      if(a) chips.push(`<span class="chip chip-blue">${a}🅰️</span>`);
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #1e293b">
-        <span style="color:#e2e8f0">${p.name}</span>
-        <span>${chips.join(' ')}</span>
-      </div>`;
-    }).join('');
-  }
-  const colA = winner==='A'?'#10b981':winner==='B'?'#ef4444':'#fbbf24';
-  const colB = winner==='B'?'#10b981':winner==='A'?'#ef4444':'#fbbf24';
-  const mvpHtml = game.mvp ? `<div style="margin-top:10px;text-align:center"><span class="chip chip-orange">🏅 MVP: ${game.mvp}</span></div>` : '';
-  const wgHtml  = game.wg  ? `<div style="margin-top:4px;text-align:center"><span class="chip chip-green">🥅 שער ניצחון: ${game.wg}</span></div>`  : '';
+function renderGameCard(game) {
+  const sA=game.scoreA??'?', sB=game.scoreB??'?';
+  const winner=sA>sB?'A':sB>sA?'B':'X';
+  const teamRows = players => (players||[]).map(p => {
+    const g=p.goals||0, a=p.assists||0;
+    const chips=[];
+    if(g) chips.push(`<span class="chip chip-green">${g}⚽</span>`);
+    if(a) chips.push(`<span class="chip chip-blue">${a}🅰️</span>`);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #1e293b">
+      <span>${pl(p.name)}</span><span>${chips.join(' ')}</span></div>`;
+  }).join('');
+  const colA=winner==='A'?'#10b981':winner==='B'?'#ef4444':'#fbbf24';
+  const colB=winner==='B'?'#10b981':winner==='A'?'#ef4444':'#fbbf24';
   return `<div class="grid2" style="gap:12px">
     <div class="card" style="border-top:3px solid ${colA}">
       <h3 style="color:${colA};text-align:center;margin-bottom:8px">קבוצה א׳ — ${sA}</h3>
@@ -1173,39 +956,184 @@ function renderGameCard(game){
       ${teamRows(game.teamB)}
     </div>
   </div>
-  ${mvpHtml}${wgHtml}`;
+  ${game.mvp?`<div style="margin-top:10px;text-align:center"><span class="chip chip-orange">🏅 MVP: ${pl(game.mvp)}</span></div>`:''}
+  ${game.wg ?`<div style="margin-top:4px;text-align:center"><span class="chip chip-green">🥅 שער ניצחון: ${pl(game.wg)}</span></div>`:''}`;
 }
 
-function buildLastGame(){
-  const sel = document.getElementById('gameDateSel');
-  // populate dates newest-first
-  const dates = [...new Set(GAMES.map(g=>g.date))].reverse();
-  sel.innerHTML = dates.map(d=>`<option value="${d}">${d}</option>`).join('');
-  showSelectedGame();
-}
+// ── Player Profile Modal ──────────────────────────────────────────────────────
+let _modalChart = null;
+function openProfile(name) {
+  const p = STATS.players.find(x => x.name===name);
+  if (!p) return;
+  const pts = (p.w||0)*2+(p.d||0);
+  const b   = BONUS[name]||{mvp:0,wg:0};
+  const sk  = STREAKS[name];
+  const yrs = STATS.byYear.filter(e=>e.name===name).sort((a,b_)=>a.yr.localeCompare(b_.yr));
 
-function showSelectedGame(){
-  const sel = document.getElementById('gameDateSel');
-  const date = sel.value;
-  const game = GAMES.slice().reverse().find(g=>g.date===date);
-  const el = document.getElementById('lastGameDisplay');
-  if(!game){ el.innerHTML='<div class="card">לא נמצא משחק לתאריך זה</div>'; return; }
-  el.innerHTML = `<div class="card" style="margin-bottom:12px;text-align:center">
-    <h2 style="margin:0">📅 ${game.date}</h2>
-  </div>` + renderGameCard(game);
-}
+  const myPairs = STATS.pairs
+    .filter(x => x.p1===name||x.p2===name)
+    .map(x => ({other:x.p1===name?x.p2:x.p1, ...x}))
+    .sort((a,b_) => b_.t-a.t).slice(0,8);
 
-// ============ INIT ============
+  const myRivals = STATS.rivals
+    .filter(x => x.p1===name||x.p2===name)
+    .map(x => {
+      const is1 = x.p1===name;
+      return {other:is1?x.p2:x.p1, t:x.t, d:x.d,
+        w:is1?x.fw:x.t-x.fw-x.d, l:is1?x.t-x.fw-x.d:x.fw};
+    })
+    .sort((a,b_) => b_.t-a.t).slice(0,8);
+
+  const skBadge = sk&&sk.type ? (() => {
+    const cls=sk.type==='W'?'sk-w':sk.type==='L'?'sk-l':'sk-d';
+    const lbl=sk.type==='W'?'ניצחונות ברצף':sk.type==='L'?'הפסדים ברצף':'תיקו';
+    const best=sk.type==='W'&&sk.bestW>sk.count?` | שיא: ${sk.bestW}`:'';
+    return `<span class="sk ${cls}" style="font-size:.78rem;padding:3px 9px">${sk.count} ${lbl}${best}</span>`;
+  })() : '';
+
+  const sBox = (label, val, color) =>
+    `<div class="stat-box"><div class="sv" style="color:${color}">${val}</div><div class="sl">${label}</div></div>`;
+
+  const chartId = 'mdlChart';
+  document.getElementById('modalContent').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #334155">
+      <h2 style="color:#fbbf24;font-size:1.35rem;margin:0">${name}</h2>
+      <span style="background:#0f172a;color:#94a3b8;padding:3px 10px;border-radius:12px;font-size:.78rem">${p.gm} משחקים</span>
+      ${skBadge}
+    </div>
+    <div class="grid4" style="gap:6px;margin-bottom:14px">
+      ${sBox('ניצחונות', p.w, '#10b981')}
+      ${sBox('הפסדים',   p.l, '#ef4444')}
+      ${sBox('תיקו',     p.d, '#fbbf24')}
+      ${sBox('%ניצחון', pct(p.w,p.gm)+'%', '#3b82f6')}
+      ${sBox('שערים',   p.g, '#fbbf24')}
+      ${sBox('בישולים', p.a, '#8b5cf6')}
+      ${sBox('MVP',   b.mvp||'-', '#f59e0b')}
+      ${sBox("שניצ'",  b.wg||'-',  '#10b981')}
+    </div>
+    ${yrs.length>1 ? `
+    <div class="card" style="padding:10px;margin-bottom:12px">
+      <div style="font-size:.76rem;color:#64748b;margin-bottom:4px">📈 מגמה לפי שנה</div>
+      <div class="modal-chart"><canvas id="${chartId}"></canvas></div>
+    </div>` : ''}
+    <div class="grid2" style="gap:10px">
+      <div>
+        <div style="font-size:.78rem;color:#64748b;font-weight:bold;margin-bottom:6px">🤝 שותפים הכי נפוצים</div>
+        ${myPairs.length ? myPairs.map(x=>`
+          <div class="pair-row">
+            <span>${pl(x.other)}</span>
+            <span>
+              <span class="chip chip-blue">${x.t}מ׳</span>
+              <span class="chip chip-green">${x.w}W</span>
+              <span class="chip chip-orange">${pct(x.w,x.t)}%</span>
+            </span>
+          </div>`).join('') : '<div style="color:#475569;font-size:.75rem;padding:6px">אין נתונים</div>'}
+      </div>
+      <div>
+        <div style="font-size:.78rem;color:#64748b;font-weight:bold;margin-bottom:6px">⚔️ יריבים מובילים</div>
+        ${myRivals.length ? myRivals.map(x=>`
+          <div class="pair-row">
+            <span>${pl(x.other)}</span>
+            <span>
+              <span class="chip chip-blue">${x.t}מ׳</span>
+              <span class="chip ${x.w>=x.l?'chip-green':'chip-red'}">${x.w}W / ${x.l}L</span>
+            </span>
+          </div>`).join('') : '<div style="color:#475569;font-size:.75rem;padding:6px">אין נתונים</div>'}
+      </div>
+    </div>`;
+
+  document.getElementById('playerModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  if (yrs.length > 1) {
+    if (_modalChart) { _modalChart.destroy(); _modalChart=null; }
+    setTimeout(() => {
+      const ctx = document.getElementById(chartId);
+      if (!ctx) return;
+      _modalChart = new Chart(ctx, {
+        type:'line',
+        data:{
+          labels: yrs.map(y=>y.yr),
+          datasets:[
+            {label:'%ניצ׳', data:yrs.map(y=>y.gm>0?Math.round(100*y.w/y.gm):0),
+              borderColor:'#fbbf24', backgroundColor:'rgba(251,191,36,.12)',
+              tension:.3, yAxisID:'y', fill:true, pointRadius:4},
+            {label:'משחקים', data:yrs.map(y=>y.gm),
+              borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.08)',
+              tension:.3, yAxisID:'y2', pointRadius:3},
+          ]
+        },
+        options:{
+          plugins:{legend:{labels:{color:'#94a3b8',font:{size:10}}}},
+          scales:{
+            y:{max:100,min:0,grid:{color:'#334155'},ticks:{color:'#94a3b8',font:{size:9}},
+               title:{display:true,text:"% ניצ'",color:'#94a3b8',font:{size:9}}},
+            y2:{position:'left',grid:{display:false},ticks:{color:'#475569',font:{size:9}},
+               title:{display:true,text:"מ'",color:'#475569',font:{size:9}}},
+            x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',font:{size:9}}}
+          },
+          maintainAspectRatio:false
+        }
+      });
+    }, 50);
+  }
+}
+function closeModal() {
+  document.getElementById('playerModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function modalBgClick(e) {
+  if (e.target===document.getElementById('playerModal')) closeModal();
+}
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
+
+// ── Visitor tracking ──────────────────────────────────────────────────────────
+function initVisitor() {
+  const names = [...STATS.players].sort((a,b)=>a.name.localeCompare(b.name,'he')).map(p=>p.name);
+  const sel   = document.getElementById('visSelect');
+  sel.innerHTML = ['<option value="">-- בחר --</option>',
+    '<option value="אורח">אורח/ת</option>',
+    ...names.map(n=>`<option value="${n}">${n}</option>`)].join('');
+  const stored = localStorage.getItem('soccer_visitor');
+  if (stored) {
+    document.getElementById('visLabel').textContent = stored;
+    sel.value = stored;
+    logVisit(stored);
+  }
+}
+function saveVisitor() {
+  const v = document.getElementById('visSelect').value;
+  if (!v) return;
+  localStorage.setItem('soccer_visitor', v);
+  document.getElementById('visLabel').textContent = v;
+  toggleVisPanel();
+  logVisit(v);
+}
+function logVisit(name) {
+  if (!WEBHOOK_URL) return;
+  const ua = encodeURIComponent(navigator.userAgent.slice(0,80));
+  fetch(`${WEBHOOK_URL}?v=${encodeURIComponent(name)}&ua=${ua}`, {mode:'no-cors'}).catch(()=>{});
+}
+function toggleVisPanel() {
+  document.getElementById('visPanel').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  const panel = document.getElementById('visPanel');
+  if (panel.classList.contains('open')
+      && !panel.contains(e.target)
+      && !document.getElementById('visBtn').contains(e.target)) {
+    panel.classList.remove('open');
+  }
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
 buildOverview();
 buildLeaderboard();
 buildMVPLeaderboard();
 buildKosher();
-buildPartners();
-buildYears();
-buildFacts();
-calcH2H();
-showPartnerStats();
 buildLastGame();
+calcH2H();
+initVisitor();
 </script>
 </body>
 </html>

@@ -300,7 +300,7 @@ async function saveGame(){
     const res=sA>sB?'ניצחון א׳':sB>sA?'ניצחון ב׳':'תיקו';
     statusEl.innerHTML=`<div class="status st-ok">
       ✅ נשמר! ${gameDate} — ${sA}:${sB} (${res})<br>
-      כעת פתח את המחשב ולחץ פעמיים על <b>update.bat</b>
+      🤖 האתר מתעדכן אוטומטית — תוך כ-2 דקות הדשבורד יהיה מעודכן.
     </div>`;
     setLS('st-ok',`✓ ${gamesData.length} משחקים`);
   } catch(e){

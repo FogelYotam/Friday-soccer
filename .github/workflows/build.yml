@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - 'games_data.json'
+      - 'gen_dashboard.py'
+  workflow_dispatch:
 
 permissions:
   contents: write
