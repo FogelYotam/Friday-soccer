@@ -5,6 +5,9 @@ import os as _os
 _DIR       = _os.path.dirname(_os.path.abspath(__file__))
 GAMES_PATH = _os.path.join(_DIR, 'games_data.json')
 EXCEL_PATH = r'C:\Users\shlom\OneDrive\Documents\כדורגל שישי\כדורגל שישי בילו 2026.xlsx'
+# fallback for CI builds (GitHub Actions), where the OneDrive path doesn't exist
+if not _os.path.exists(EXCEL_PATH):
+    EXCEL_PATH = _os.path.join(_DIR, 'soccer.xlsx')
 OUT_PATH   = _os.path.join(_DIR, 'dashboard.html')
 
 MERGE_MAP = {
