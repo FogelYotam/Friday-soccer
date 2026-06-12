@@ -578,23 +578,37 @@ const STREAKS = (() => {
     const sA = g.scoreA??0, sB = g.scoreB??0;
     const rA = sA>sB?'W':sA<sB?'L':'D';
     const rB = sB>sA?'W':sB<sA?'L':'D';
-    const upd = (name, r) => {
+    const upd = (name, r, dt) => {
       if (!s[name]) s[name] = {type:null, count:0, bestW:0, bestU:0, curU:0};
       const c = s[name];
-      if (c.type === r) { c.count++; if (r==='W' && c.count>c.bestW) c.bestW=c.count; }
-      else              { c.type=r; c.count=1; if (r==='W') c.bestW=Math.max(c.bestW,1); }
+      if (c.type === r) c.count++;
+      else { c.type = r; c.count = 1; }
+      if (r==='W') {
+        if (c.count === 1) c._wFrom = dt;
+        if (c.count > c.bestW) { c.bestW=c.count; c.bestWFrom=c._wFrom; c.bestWTo=dt; }
+      }
       // unbeaten run (wins + draws)
       if (r==='L') c.curU = 0;
-      else { c.curU++; if (c.curU>c.bestU) c.bestU=c.curU; }
+      else {
+        if (c.curU === 0) c._uFrom = dt;
+        c.curU++;
+        if (c.curU > c.bestU) { c.bestU=c.curU; c.bestUFrom=c._uFrom; c.bestUTo=dt; }
+      }
     };
-    (g.teamA||[]).forEach(p => { if(p.name) upd(p.name, rA); });
-    (g.teamB||[]).forEach(p => { if(p.name) upd(p.name, rB); });
+    (g.teamA||[]).forEach(p => { if(p.name) upd(p.name, rA, g.date); });
+    (g.teamB||[]).forEach(p => { if(p.name) upd(p.name, rB, g.date); });
   });
   return s;
 })();
 
 // ── Utils ────────────────────────────────────────────────────────────────────
 function pct(w,t)  { return t>0 ? Math.round(100*w/t) : 0; }
+// M/D/YYYY -> D.M.YY for display
+function fmtD(d) {
+  if (!d) return '?';
+  const [m,dd,y] = d.split('/');
+  return `${dd}.${m}.${String(y).slice(-2)}`;
+}
 function r2(v)     { return isFinite(v) ? Math.round(v*100)/100 : 0; }
 function showTab(name, btn) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -689,18 +703,24 @@ function buildOverview() {
       const names=new Set(STATS.players.map(p=>p.name));
       return Object.entries(STREAKS).filter(([n])=>names.has(n))
         .sort((a,b)=>b[1].bestW-a[1].bestW).slice(0,3).map(([n,s],i)=>`
-        <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:3px">
-          <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
-          <b style="color:#fbbf24">${s.bestW} נצח׳ ברצף</b>
+        <div style="font-size:.76rem;margin-bottom:4px">
+          <div style="display:flex;justify-content:space-between">
+            <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
+            <b style="color:#fbbf24">${s.bestW} נצח׳ ברצף</b>
+          </div>
+          <div style="font-size:.64rem;color:#64748b;text-align:left">${fmtD(s.bestWFrom)} – ${fmtD(s.bestWTo)}</div>
         </div>`).join('');
     })()},
     {icon:'🛡️', label:'הרצף הארוך ביותר ללא הפסד', content:(()=> {
       const names=new Set(STATS.players.map(p=>p.name));
       return Object.entries(STREAKS).filter(([n])=>names.has(n))
         .sort((a,b)=>b[1].bestU-a[1].bestU).slice(0,3).map(([n,s],i)=>`
-        <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:3px">
-          <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
-          <b style="color:#fbbf24">${s.bestU} ללא הפסד</b>
+        <div style="font-size:.76rem;margin-bottom:4px">
+          <div style="display:flex;justify-content:space-between">
+            <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
+            <b style="color:#fbbf24">${s.bestU} ללא הפסד</b>
+          </div>
+          <div style="font-size:.64rem;color:#64748b;text-align:left">${fmtD(s.bestUFrom)} – ${fmtD(s.bestUTo)}</div>
         </div>`).join('');
     })()},
   ].map(h=>`
@@ -783,12 +803,13 @@ function filterTable() {
       wg_n:   yr==='all' ? ((BONUS[p.name]||{}).wg||0)  : (((BONUS_BY_YEAR[p.name]||{})[yr]||{}).wg||0),
     }));
   rows.sort((a,b) => {
+    // dir=-1 means descending (best first)
     if (lbSortKey==='w') {
-      let d=b.w-a.w; if(d!==0) return lbSortDir*d;
-      d=b.pts-a.pts; if(d!==0) return lbSortDir*d;
-      return lbSortDir*(b.g-a.g);
+      let d=a.w-b.w; if(d!==0) return lbSortDir*d;
+      d=a.pts-b.pts; if(d!==0) return lbSortDir*d;
+      return lbSortDir*(a.g-b.g);
     }
-    return lbSortDir*(b[lbSortKey]-a[lbSortKey]);
+    return lbSortDir*((a[lbSortKey]??0)-(b[lbSortKey]??0));
   });
   document.getElementById('lbBody').innerHTML = rows.map((p,i) => `
     <tr>
@@ -898,9 +919,10 @@ function sortKosher(key) {
 }
 function renderKosherTable() {
   const rows = [..._ksrRows].sort((a,b) => {
+    // dir=-1 means descending (most in-form first)
     const va=a[ksrSortKey]??0, vb=b[ksrSortKey]??0;
-    if (typeof va==='string') return ksrSortDir*(va<vb?-1:va>vb?1:0);
-    return ksrSortDir*(vb-va);
+    if (typeof va==='string') return ksrSortDir*(va<vb?1:va>vb?-1:0);
+    return ksrSortDir*(va-vb);
   });
   const maxR = Math.max(...rows.map(r=>r.rating), 0.01);
   const ti   = t => t==='up'?'<span class="trend-up">↑</span>':t==='down'?'<span class="trend-down">↓</span>':'<span class="trend-same">→</span>';
@@ -1095,8 +1117,8 @@ function profileBody(name, chartId) {
       ${sBox('בישולים', p.a, '#8b5cf6')}
       ${sBox('MVP',   b.mvp||'-', '#f59e0b')}
       ${sBox("שניצ'",  b.wg||'-',  '#10b981')}
-      ${sBox('שיא רצף ניצחונות', (sk&&sk.bestW)||'-', '#fb923c')}
-      ${sBox('שיא ללא הפסד',     (sk&&sk.bestU)||'-', '#22d3ee')}
+      ${sBox('שיא רצף ניצחונות', (sk&&sk.bestW) ? sk.bestW+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${fmtD(sk.bestWFrom)} – ${fmtD(sk.bestWTo)}</div>` : '-', '#fb923c')}
+      ${sBox('שיא ללא הפסד',     (sk&&sk.bestU) ? sk.bestU+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${fmtD(sk.bestUFrom)} – ${fmtD(sk.bestUTo)}</div>` : '-', '#22d3ee')}
     </div>
     ${yrs.length>1 ? `
     <div class="card" style="padding:10px;margin-bottom:12px">
