@@ -609,6 +609,11 @@ function fmtD(d) {
   const [m,dd,y] = d.split('/');
   return `${dd}.${m}.${String(y).slice(-2)}`;
 }
+// "from – to (N ימים)" display line for a streak record
+function streakRange(from, to) {
+  const days = Math.round((parseDate(to)-parseDate(from)) / 86400000);
+  return `${fmtD(from)} – ${fmtD(to)} (${days} ימים)`;
+}
 function r2(v)     { return isFinite(v) ? Math.round(v*100)/100 : 0; }
 function showTab(name, btn) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -708,7 +713,7 @@ function buildOverview() {
             <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
             <b style="color:#fbbf24">${s.bestW} נצח׳ ברצף</b>
           </div>
-          <div style="font-size:.64rem;color:#64748b;text-align:left">${fmtD(s.bestWFrom)} – ${fmtD(s.bestWTo)}</div>
+          <div style="font-size:.64rem;color:#64748b;text-align:left">${streakRange(s.bestWFrom, s.bestWTo)}</div>
         </div>`).join('');
     })()},
     {icon:'🛡️', label:'הרצף הארוך ביותר ללא הפסד', content:(()=> {
@@ -720,7 +725,7 @@ function buildOverview() {
             <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
             <b style="color:#fbbf24">${s.bestU} ללא הפסד</b>
           </div>
-          <div style="font-size:.64rem;color:#64748b;text-align:left">${fmtD(s.bestUFrom)} – ${fmtD(s.bestUTo)}</div>
+          <div style="font-size:.64rem;color:#64748b;text-align:left">${streakRange(s.bestUFrom, s.bestUTo)}</div>
         </div>`).join('');
     })()},
   ].map(h=>`
@@ -1117,8 +1122,8 @@ function profileBody(name, chartId) {
       ${sBox('בישולים', p.a, '#8b5cf6')}
       ${sBox('MVP',   b.mvp||'-', '#f59e0b')}
       ${sBox("שניצ'",  b.wg||'-',  '#10b981')}
-      ${sBox('שיא רצף ניצחונות', (sk&&sk.bestW) ? sk.bestW+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${fmtD(sk.bestWFrom)} – ${fmtD(sk.bestWTo)}</div>` : '-', '#fb923c')}
-      ${sBox('שיא ללא הפסד',     (sk&&sk.bestU) ? sk.bestU+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${fmtD(sk.bestUFrom)} – ${fmtD(sk.bestUTo)}</div>` : '-', '#22d3ee')}
+      ${sBox('שיא רצף ניצחונות', (sk&&sk.bestW) ? sk.bestW+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestWFrom, sk.bestWTo)}</div>` : '-', '#fb923c')}
+      ${sBox('שיא ללא הפסד',     (sk&&sk.bestU) ? sk.bestU+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestUFrom, sk.bestUTo)}</div>` : '-', '#22d3ee')}
     </div>
     ${yrs.length>1 ? `
     <div class="card" style="padding:10px;margin-bottom:12px">
