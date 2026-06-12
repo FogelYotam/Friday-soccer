@@ -557,17 +557,15 @@ const BONUS_BY_YEAR = {};
 
 // Dynamic kosher years: last 3 years that have data
 const ALL_YRS = [...new Set(STATS.byYear.map(e=>e.yr))].filter(y=>y&&y!=='unknown').sort();
-const KSR_YEARS = ALL_YRS.slice(-3);
-const KSR_WEIGHTS = {};
-KSR_YEARS.forEach((y,i) => KSR_WEIGHTS[y] = Math.pow(2, i)); // 1,2,4
 
-// ── Date parsing (DD/MM/YYYY Israeli format) ─────────────────────────────────
+// ── Date parsing (M/D/YYYY — American format, as written by entry.html) ──────
 function parseDate(d) {
   if (!d) return 0;
   const p = d.replace(/-/g,'/').split('/');
   if (p.length === 3) {
     const [a,b,c] = [+p[0],+p[1],+p[2]];
-    return c > 1000 ? new Date(c,b-1,a).getTime() : new Date(a,b-1,c).getTime();
+    // M/D/YYYY (e.g. 8/12/2011 = Aug 12) or YYYY/M/D
+    return c > 1000 ? new Date(c,a-1,b).getTime() : new Date(a,b-1,c).getTime();
   }
   return new Date(d).getTime();
 }
@@ -581,10 +579,13 @@ const STREAKS = (() => {
     const rA = sA>sB?'W':sA<sB?'L':'D';
     const rB = sB>sA?'W':sB<sA?'L':'D';
     const upd = (name, r) => {
-      if (!s[name]) s[name] = {type:null, count:0, bestW:0};
+      if (!s[name]) s[name] = {type:null, count:0, bestW:0, bestU:0, curU:0};
       const c = s[name];
       if (c.type === r) { c.count++; if (r==='W' && c.count>c.bestW) c.bestW=c.count; }
       else              { c.type=r; c.count=1; if (r==='W') c.bestW=Math.max(c.bestW,1); }
+      // unbeaten run (wins + draws)
+      if (r==='L') c.curU = 0;
+      else { c.curU++; if (c.curU>c.bestU) c.bestU=c.curU; }
     };
     (g.teamA||[]).forEach(p => { if(p.name) upd(p.name, rA); });
     (g.teamB||[]).forEach(p => { if(p.name) upd(p.name, rB); });
@@ -684,6 +685,24 @@ function buildOverview() {
         <b style="color:#fbbf24">${pct(p.w,p.gm)}%</b>
       </div>`).join('')},
     {icon:'📈', label:'ממוצע נקודות / משחק',  content:top3([...active],'ppg',v=>r2(v))},
+    {icon:'🔥', label:'רצף הניצחונות הארוך בהיסטוריה', content:(()=> {
+      const names=new Set(STATS.players.map(p=>p.name));
+      return Object.entries(STREAKS).filter(([n])=>names.has(n))
+        .sort((a,b)=>b[1].bestW-a[1].bestW).slice(0,3).map(([n,s],i)=>`
+        <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:3px">
+          <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
+          <b style="color:#fbbf24">${s.bestW} נצח׳ ברצף</b>
+        </div>`).join('');
+    })()},
+    {icon:'🛡️', label:'הרצף הארוך ביותר ללא הפסד', content:(()=> {
+      const names=new Set(STATS.players.map(p=>p.name));
+      return Object.entries(STREAKS).filter(([n])=>names.has(n))
+        .sort((a,b)=>b[1].bestU-a[1].bestU).slice(0,3).map(([n,s],i)=>`
+        <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:3px">
+          <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
+          <b style="color:#fbbf24">${s.bestU} ללא הפסד</b>
+        </div>`).join('');
+    })()},
   ].map(h=>`
     <div class="hero-card">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
@@ -815,56 +834,61 @@ function buildMVPLeaderboard() {
     }).join('')}</tbody></table>`;
 }
 
-// ── Kosher ────────────────────────────────────────────────────────────────────
+// ── Kosher (day-window based: last 180 days ×2 + previous 180 days ×1) ───────
 let ksrSortKey='rating', ksrSortDir=-1, _ksrRows=[];
-function yrScore(yd, bonus) {
-  if (!yd || yd.gm<1) return null;
-  const b = bonus||{mvp:0,wg:0};
-  return (yd.w/yd.gm)*40 + (yd.g/yd.gm)*20 + (yd.a/yd.gm)*10 + (b.mvp/yd.gm)*30 + (b.wg/yd.gm)*20;
+const KSR_DAY = 24*60*60*1000;
+function winScore(wd) {
+  if (!wd || wd.gm<1) return null;
+  return (wd.w/wd.gm)*40 + (wd.g/wd.gm)*20 + (wd.a/wd.gm)*10 + (wd.mvp/wd.gm)*30 + (wd.wg/wd.gm)*20;
 }
 function buildKosher() {
   const min = parseInt(document.getElementById('kosherMinGames').value)||5;
-  const ksrRange = KSR_YEARS.length>=2
-    ? `${KSR_YEARS[0].slice(-2)}-${KSR_YEARS[KSR_YEARS.length-1].slice(-2)}`
-    : KSR_YEARS[0]||'';
+  const ref = Math.max(...GAMES.map(g=>parseDate(g.date)));  // date of latest game
+  const cutA = ref - 180*KSR_DAY;   // window A: last 180 days
+  const cutB = ref - 360*KSR_DAY;   // window B: 180 days before that
   document.getElementById('kosherFormula').textContent =
-    `ניקוד = ממוצע משוקלל שנים ${KSR_YEARS.join('/')} | משקלות: ${KSR_YEARS.map((y,i)=>`${y}×${KSR_WEIGHTS[y]}`).join(' · ')} | נוסחה: %נצח×40 + ש/מ×20 + ב/מ×10 + MVP/מ×30 + שניצ׳/מ×20`;
+    'ניקוד = ממוצע משוקלל: 180 הימים האחרונים ×2 + 180 הימים שלפניהם ×1 (ישן יותר לא נספר) | נוסחה: %נצח×40 + ש/מ×20 + ב/מ×10 + MVP/מ×30 + שניצ׳/מ×20';
 
-  const byYearMap = {};
-  STATS.byYear.forEach(e => {
-    if (!byYearMap[e.name]) byYearMap[e.name] = {};
-    byYearMap[e.name][e.yr] = e;
+  // aggregate per player per window from raw games
+  const agg = {};  // name -> {A:{gm,w,g,a,mvp,wg}, B:{...}}
+  const blank = () => ({gm:0,w:0,g:0,a:0,mvp:0,wg:0});
+  GAMES.forEach(g => {
+    const t = parseDate(g.date);
+    if (t < cutB) return;
+    const wnd = t >= cutA ? 'A' : 'B';
+    const sA=g.scoreA??0, sB=g.scoreB??0;
+    const res = team => team==='A' ? (sA>sB?'w':sA<sB?'l':'d') : (sB>sA?'w':sB<sA?'l':'d');
+    [['A', g.teamA||[]], ['B', g.teamB||[]]].forEach(([team, list]) => {
+      list.forEach(p => {
+        if (!p.name) return;
+        if (!agg[p.name]) agg[p.name] = {A:blank(), B:blank()};
+        const w = agg[p.name][wnd];
+        w.gm++; if (res(team)==='w') w.w++;
+        w.g += p.goals||0; w.a += p.assists||0;
+      });
+    });
+    if (g.mvp && agg[g.mvp]) agg[g.mvp][wnd].mvp++;
+    if (g.wg  && agg[g.wg])  agg[g.wg][wnd].wg++;
   });
 
   _ksrRows = STATS.players
-    .filter(p => {
-      const yrs = byYearMap[p.name]||{};
-      return KSR_YEARS.reduce((s,y) => s+(yrs[y]?yrs[y].gm:0), 0) >= min;
-    })
+    .filter(p => agg[p.name] && (agg[p.name].A.gm + agg[p.name].B.gm) >= min)
     .map(p => {
-      const yrs = byYearMap[p.name]||{};
-      const bonusYrs = BONUS_BY_YEAR[p.name]||{};
-      let wSum=0,wTot=0,rGm=0,rW=0,rG=0,rA=0,rMvp=0,rWg=0;
-      KSR_YEARS.forEach(y => {
-        const yd=yrs[y]; if(!yd||yd.gm<1) return;
-        const bns=bonusYrs[y]||{mvp:0,wg:0};
-        const sc=yrScore(yd,bns), wt=KSR_WEIGHTS[y]||1;
-        wSum+=sc*wt; wTot+=wt;
-        rGm+=yd.gm; rW+=yd.w; rG+=yd.g; rA+=yd.a;
-        rMvp+=(bns.mvp||0); rWg+=(bns.wg||0);
-      });
+      const {A, B} = agg[p.name];
+      const scA = winScore(A), scB = winScore(B);
+      let wSum=0, wTot=0;
+      if (scA!==null) { wSum+=scA*2; wTot+=2; }
+      if (scB!==null) { wSum+=scB;   wTot+=1; }
       const rating = wTot>0 ? wSum/wTot : 0;
-      const lastY=KSR_YEARS[KSR_YEARS.length-1], prevY=KSR_YEARS[KSR_YEARS.length-2];
-      const sc2=yrScore(yrs[lastY],bonusYrs[lastY]), sc1=yrScore(yrs[prevY],bonusYrs[prevY]);
       let trend='same';
-      if (sc2!==null&&sc1!==null) { if(sc2>sc1*1.05) trend='up'; else if(sc2<sc1*0.95) trend='down'; }
-      else if (sc2!==null&&sc1===null) trend='up';
-      else if (sc2===null&&sc1!==null) trend='down';
-      const gmByYr = {};
-      KSR_YEARS.forEach(y => gmByYr['yr'+y] = yrs[y]?yrs[y].gm:0);
-      return {...p, rating, trend, recentGm:rGm, recentW:rW,
-        wp:rGm>0?rW/rGm:0, gp:rGm>0?rG/rGm:0, ap:rGm>0?rA/rGm:0,
-        mvp_n:rMvp, wg_n:rWg, ...gmByYr};
+      if (scA!==null&&scB!==null) { if(scA>scB*1.05) trend='up'; else if(scA<scB*0.95) trend='down'; }
+      else if (scA!==null) trend='up';
+      else if (scB!==null) trend='down';
+      const gm=A.gm+B.gm, w=A.w+B.w, g=A.g+B.g, a=A.a+B.a;
+      return {...p, rating, trend, recentGm:gm, recentW:w,
+        gmA:A.gm, gmB:B.gm,
+        wp:gm>0?w/gm:0, gp:gm>0?g/gm:0, ap:gm>0?a/gm:0,
+        mvp_n:A.mvp+B.mvp, wg_n:A.wg+B.wg};
     });
   renderKosherTable();
 }
@@ -885,8 +909,9 @@ function renderKosherTable() {
     <table><thead><tr>
       <th>#</th>
       <th onclick="sortKosher('name')" style="text-align:right;${ksrSortKey==='name'?'color:#fff':''}">שחקן${ksrSortKey==='name'?(ksrSortDir===-1?' ▼':' ▲'):''}</th>
-      ${thK('recentGm', 'מ׳ '+KSR_YEARS.map(y=>y.slice(-2)).join('-'))}
-      ${KSR_YEARS.map(y=>thK('yr'+y, y)).join('')}
+      ${thK('recentGm', 'מ׳ סה"כ')}
+      ${thK('gmA', '180 אחרונים')}
+      ${thK('gmB', '180 שלפני')}
       <th>מגמה</th>
       ${thK('wp','%נצח')}
       ${thK('gp','ש/מ')}
@@ -901,7 +926,8 @@ function renderKosherTable() {
         <td>${i+1}</td>
         <td style="text-align:right;font-weight:bold">${pl(p.name)}</td>
         <td>${p.recentGm}</td>
-        ${KSR_YEARS.map(y=>`<td style="color:#475569">${p['yr'+y]||'-'}</td>`).join('')}
+        <td style="color:#94a3b8">${p.gmA||'-'}</td>
+        <td style="color:#475569">${p.gmB||'-'}</td>
         <td style="text-align:center">${ti(p.trend)}</td>
         <td>${pct(p.recentW,p.recentGm)}%</td>
         <td>${r2(p.gp)}</td>
@@ -1069,6 +1095,8 @@ function profileBody(name, chartId) {
       ${sBox('בישולים', p.a, '#8b5cf6')}
       ${sBox('MVP',   b.mvp||'-', '#f59e0b')}
       ${sBox("שניצ'",  b.wg||'-',  '#10b981')}
+      ${sBox('שיא רצף ניצחונות', (sk&&sk.bestW)||'-', '#fb923c')}
+      ${sBox('שיא ללא הפסד',     (sk&&sk.bestU)||'-', '#22d3ee')}
     </div>
     ${yrs.length>1 ? `
     <div class="card" style="padding:10px;margin-bottom:12px">
