@@ -344,7 +344,10 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
 <!-- OVERVIEW -->
 <div id="tab-overview" class="tab active">
   <div class="card" style="margin-bottom:12px">
-    <h3 id="curYearTitle">🗓️ שנה נוכחית</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;border-bottom:1px solid #334155;padding-bottom:6px;margin-bottom:8px">
+      <h3 id="curYearTitle" style="border:none;padding:0;margin:0">🗓️ שנה נוכחית</h3>
+      <select id="ovYearSel" onchange="renderYearHeroes(this.value)"></select>
+    </div>
     <div class="grid4" id="curYearHeroes"></div>
   </div>
   <div class="grid4" style="margin-bottom:12px" id="heroes"></div>
@@ -611,6 +614,39 @@ function skHtml(name) {
 }
 
 // ── Overview ─────────────────────────────────────────────────────────────────
+function renderYearHeroes(yr) {
+  const latest = ALL_YRS[ALL_YRS.length-1];
+  const sel = document.getElementById('ovYearSel');
+  if (sel.value !== yr) sel.value = yr;
+  document.getElementById('curYearTitle').textContent =
+    `🗓️ הישגי ${yr}` + (yr===latest ? ' — שנה נוכחית' : '');
+
+  const data    = STATS.byYear.filter(e => e.yr===yr);
+  const scorers = [...data].sort((a,b)=>b.g-a.g).filter(p=>p.g>0).slice(0,3);
+  const assists = [...data].sort((a,b)=>b.a-a.a).filter(p=>p.a>0).slice(0,3);
+  const mvp = [...(STATS.bonusByYear||[])].filter(b=>b.yr===yr&&b.mvp>0).sort((a,b)=>b.mvp-a.mvp).slice(0,3);
+  const wg  = [...(STATS.bonusByYear||[])].filter(b=>b.yr===yr&&b.wg>0).sort((a,b)=>b.wg-a.wg).slice(0,3);
+  const row = (arr, fmt) => arr.length ? arr.map((p,i)=>`
+    <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:3px">
+      <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(p.name)}</span>
+      <b style="color:#fbbf24">${fmt(p)}</b>
+    </div>`).join('') : '<div style="color:#475569;font-size:.75rem">אין נתונים</div>';
+
+  document.getElementById('curYearHeroes').innerHTML = [
+    {icon:'⚽', label:`מלך שערים ${yr}`, content:row(scorers,p=>`${p.g} שע׳`)},
+    {icon:'🅰️', label:`מלך בישולים ${yr}`, content:row(assists,p=>`${p.a} בישול`)},
+    {icon:'🏅', label:`MVP ${yr}`, content:mvp.length?row(mvp,p=>`${p.mvp} MVP`):'<div style="color:#475569;font-size:.75rem">'+(yr===latest?'טרם נקבע':'אין נתונים')+'</div>'},
+    {icon:'⚡', label:`שניצ׳ ${yr}`, content:wg.length?row(wg,p=>`${p.wg} שניצ׳`):'<div style="color:#475569;font-size:.75rem">'+(yr===latest?'טרם נקבע':'אין נתונים')+'</div>'},
+  ].map(h=>`
+    <div class="hero-card">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <span style="font-size:1.5rem">${h.icon}</span>
+        <div style="font-size:.72rem;color:#64748b;font-weight:bold">${h.label}</div>
+      </div>
+      ${h.content}
+    </div>`).join('');
+}
+
 function buildOverview() {
   const ps = STATS.players.map(p => ({...p,
     pts: (p.w||0)*2+(p.d||0),
@@ -634,32 +670,10 @@ function buildOverview() {
       <b style="color:#fbbf24">${fmt(p[key])}</b>
     </div>`).join('');
 
-  // current year
-  document.getElementById('curYearTitle').textContent = `🗓️ הישגי ${curYr} — שנה נוכחית`;
-  const cyrData   = STATS.byYear.filter(e => e.yr===curYr);
-  const cyrScorers = [...cyrData].sort((a,b)=>b.g-a.g).slice(0,3);
-  const cyrAssists = [...cyrData].sort((a,b)=>b.a-a.a).slice(0,3);
-  const cyrMVP = [...(STATS.bonusByYear||[])].filter(b=>b.yr===curYr&&b.mvp>0).sort((a,b)=>b.mvp-a.mvp).slice(0,3);
-  const cyrWG  = [...(STATS.bonusByYear||[])].filter(b=>b.yr===curYr&&b.wg>0).sort((a,b)=>b.wg-a.wg).slice(0,3);
-  const cyrRow = (arr, fmt) => arr.length ? arr.map((p,i)=>`
-    <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:3px">
-      <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(p.name)}</span>
-      <b style="color:#fbbf24">${fmt(p)}</b>
-    </div>`).join('') : '<div style="color:#475569;font-size:.75rem">אין נתונים</div>';
-
-  document.getElementById('curYearHeroes').innerHTML = [
-    {icon:'⚽', label:`מלך שערים ${curYr}`, content:cyrRow(cyrScorers,p=>`${p.g} שע׳`)},
-    {icon:'🅰️', label:`מלך בישולים ${curYr}`, content:cyrRow(cyrAssists,p=>`${p.a} בישול`)},
-    {icon:'🏅', label:`MVP ${curYr}`, content:cyrMVP.length?cyrRow(cyrMVP,p=>`${p.mvp} MVP`):'<div style="color:#475569;font-size:.75rem">טרם נקבע</div>'},
-    {icon:'⚡', label:`שניצ׳ ${curYr}`, content:cyrWG.length?cyrRow(cyrWG,p=>`${p.wg} שניצ׳`):'<div style="color:#475569;font-size:.75rem">טרם נקבע</div>'},
-  ].map(h=>`
-    <div class="hero-card">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-        <span style="font-size:1.5rem">${h.icon}</span>
-        <div style="font-size:.72rem;color:#64748b;font-weight:bold">${h.label}</div>
-      </div>
-      ${h.content}
-    </div>`).join('');
+  // year heroes (with year selector, defaults to current year)
+  document.getElementById('ovYearSel').innerHTML =
+    [...ALL_YRS].reverse().map(y=>`<option value="${y}">${y}</option>`).join('');
+  renderYearHeroes(curYr);
 
   document.getElementById('heroes').innerHTML = [
     {icon:'🏆', label:'מובילי נקודות',       content:top3([...active],'pts',v=>v+' נק\'')},
