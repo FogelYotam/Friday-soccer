@@ -39408,5 +39408,60 @@
     "scoreA": 7,
     "scoreB": 5,
     "mvp": "מוש"
+  },
+  {
+    "date": "6/12/2026",
+    "teamA": [
+      {
+        "name": "קובי",
+        "goals": 2,
+        "assists": 0
+      },
+      {
+        "name": "אורן",
+        "goals": 0,
+        "assists": 1
+      },
+      {
+        "name": "רותם",
+        "goals": 2,
+        "assists": 0
+      },
+      {
+        "name": "רפי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "עידן",
+        "goals": 4,
+        "assists": 0
+      }
+    ],
+    "teamB": [
+      {
+        "name": "ירון",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "אייל",
+        "goals": 3,
+        "assists": 1
+      },
+      {
+        "name": "פוגל",
+        "goals": 4,
+        "assists": 2
+      },
+      {
+        "name": "זליצקי",
+        "goals": 3,
+        "assists": 3
+      }
+    ],
+    "scoreA": 8,
+    "scoreB": 10,
+    "mvp": "זליצקי"
   }
 ]
