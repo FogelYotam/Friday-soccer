@@ -515,6 +515,18 @@ function buildOverview() {
           <div style="font-size:.64rem;color:#64748b;text-align:left">${streakRange(s.bestUFrom, s.bestUTo)}</div>
         </div>`).join('');
     })()},
+    {icon:'🥶', label:'הרצף הארוך ביותר ללא ניצחון', content:(()=> {
+      const names=new Set(STATS.players.map(p=>p.name));
+      return Object.entries(STREAKS).filter(([n])=>names.has(n))
+        .sort((a,b)=>b[1].bestNW-a[1].bestNW).slice(0,3).map(([n,s],i)=>`
+        <div style="font-size:.76rem;margin-bottom:4px">
+          <div style="display:flex;justify-content:space-between">
+            <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
+            <b style="color:#94a3b8">${s.bestNW} ללא ניצחון</b>
+          </div>
+          <div style="font-size:.64rem;color:#64748b;text-align:left">${streakRange(s.bestNWFrom, s.bestNWTo)}</div>
+        </div>`).join('');
+    })()},
   ].map(h=>`
     <div class="hero-card">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
