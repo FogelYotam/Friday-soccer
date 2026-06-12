@@ -249,6 +249,26 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
   </div>
 </div>
 
+<!-- ENTRY GATE -->
+<div id="gateOverlay" style="display:none;position:fixed;inset:0;background:#0f172a;z-index:300;overflow-y:auto">
+  <div style="max-width:420px;margin:0 auto;padding:40px 20px;text-align:center">
+    <div style="font-size:3rem;margin-bottom:8px">⚽</div>
+    <h2 style="color:#fbbf24;font-size:1.5rem;margin-bottom:6px">כדורגל שישי</h2>
+    <div style="color:#94a3b8;font-size:.9rem;margin-bottom:24px">מי אתה? בחר את שמך כדי להיכנס</div>
+    <select id="gateSelect" onchange="document.getElementById('gateBtn').disabled=!this.value"
+      style="width:100%;padding:12px;font-size:1.05rem;margin-bottom:14px;text-align:center">
+    </select>
+    <button id="gateBtn" disabled onclick="enterGate()"
+      style="width:100%;padding:13px;font-size:1.05rem;font-weight:bold;background:#fbbf24;color:#0f172a;border:none;border-radius:10px;cursor:pointer">
+      ⚽ כניסה לדשבורד
+    </button>
+    <div style="color:#475569;font-size:.72rem;margin-top:14px">הבחירה נשמרת בדפדפן — תתבקש רק פעם אחת</div>
+  </div>
+</div>
+<style>
+#gateBtn:disabled{background:#334155;color:#64748b;cursor:not-allowed}
+</style>
+
 <!-- VISITOR WIDGET -->
 <button class="vis-btn" id="visBtn" onclick="toggleVisPanel()">
   👤 <span id="visLabel">מי אתה?</span>
@@ -918,7 +938,22 @@ function initVisitor() {
     document.getElementById('visLabel').textContent = stored;
     sel.value = stored;
     logVisit(stored);
+  } else {
+    // first visit: block the dashboard until a name is chosen
+    document.getElementById('gateSelect').innerHTML = sel.innerHTML;
+    document.getElementById('gateOverlay').style.display = 'block';
+    document.body.style.overflow = 'hidden';
   }
+}
+function enterGate() {
+  const v = document.getElementById('gateSelect').value;
+  if (!v) return;
+  localStorage.setItem('soccer_visitor', v);
+  document.getElementById('visLabel').textContent = v;
+  document.getElementById('visSelect').value = v;
+  document.getElementById('gateOverlay').style.display = 'none';
+  document.body.style.overflow = '';
+  logVisit(v);
 }
 function saveVisitor() {
   const v = document.getElementById('visSelect').value;
