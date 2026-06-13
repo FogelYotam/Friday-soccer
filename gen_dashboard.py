@@ -916,10 +916,10 @@ function buildKosher() {
   const cutB = ref - 360*KSR_DAY;   // window B: 180 days before that
   const cutActive = ref - 730*KSR_DAY;  // eligibility: played within the last 730 days
   document.getElementById('kosherFormula').textContent =
-    'מוצגים רק מי ששיחקו ב-730 הימים האחרונים | ניקוד = ממוצע משוקלל: 180 הימים האחרונים ×2 + 180 שלפניהם ×1 (ישן יותר לא נספר בניקוד) | נוסחה: %נצח×40 + ש/מ×20 + ב/מ×10 + MVP/מ×30 + שניצ׳/מ×20';
+    'מוצגים רק מי ששיחקו ב-730 הימים האחרונים | ניקוד = ממוצע משוקלל: 180 הימים האחרונים ×4 + 180 שלפניהם ×2 + עד 730 ימים ×1 | נוסחה: %נצח×40 + ש/מ×20 + ב/מ×10 + MVP/מ×30 + שניצ׳/מ×20';
 
   // aggregate per player per window from raw games
-  // A = last 180d, B = 180d before, C = older but within 730d (eligibility only)
+  // A = last 180d, B = 180-360d, C = 360-730d (all scored, with decreasing weight)
   const agg = {};  // name -> {A:{gm,w,g,a,mvp,wg}, B:{...}, C:{...}}
   const blank = () => ({gm:0,w:0,g:0,a:0,mvp:0,wg:0});
   GAMES.forEach(g => {
@@ -944,21 +944,22 @@ function buildKosher() {
   _ksrRows = STATS.players
     .filter(p => agg[p.name] && (agg[p.name].A.gm + agg[p.name].B.gm + agg[p.name].C.gm) >= min)
     .map(p => {
-      const {A, B} = agg[p.name];
-      const scA = winScore(A), scB = winScore(B);
+      const {A, B, C} = agg[p.name];
+      const scA = winScore(A), scB = winScore(B), scC = winScore(C);
       let wSum=0, wTot=0;
-      if (scA!==null) { wSum+=scA*2; wTot+=2; }
-      if (scB!==null) { wSum+=scB;   wTot+=1; }
+      if (scA!==null) { wSum+=scA*4; wTot+=4; }
+      if (scB!==null) { wSum+=scB*2; wTot+=2; }
+      if (scC!==null) { wSum+=scC*1; wTot+=1; }
       const rating = wTot>0 ? wSum/wTot : 0;
       let trend='same';
       if (scA!==null&&scB!==null) { if(scA>scB*1.05) trend='up'; else if(scA<scB*0.95) trend='down'; }
       else if (scA!==null) trend='up';
       else if (scB!==null) trend='down';
-      const gm=A.gm+B.gm, w=A.w+B.w, g=A.g+B.g, a=A.a+B.a;
+      const gm=A.gm+B.gm+C.gm, w=A.w+B.w+C.w, g=A.g+B.g+C.g, a=A.a+B.a+C.a;
       return {...p, rating, trend, recentGm:gm, recentW:w,
-        gmA:A.gm, gmB:B.gm,
+        gmA:A.gm, gmB:B.gm, gmC:C.gm,
         wp:gm>0?w/gm:0, gp:gm>0?g/gm:0, ap:gm>0?a/gm:0,
-        mvp_n:A.mvp+B.mvp, wg_n:A.wg+B.wg};
+        mvp_n:A.mvp+B.mvp+C.mvp, wg_n:A.wg+B.wg+C.wg};
     });
   renderKosherTable();
 }
@@ -983,6 +984,7 @@ function renderKosherTable() {
       ${thK('recentGm', 'מ׳ סה"כ')}
       ${thK('gmA', '180 אחרונים')}
       ${thK('gmB', '180 שלפני')}
+      ${thK('gmC', '360-730')}
       <th>מגמה</th>
       ${thK('wp','%נצח')}
       ${thK('gp','ש/מ')}
@@ -999,6 +1001,7 @@ function renderKosherTable() {
         <td>${p.recentGm}</td>
         <td style="color:#94a3b8">${p.gmA||'-'}</td>
         <td style="color:#475569">${p.gmB||'-'}</td>
+        <td style="color:#475569">${p.gmC||'-'}</td>
         <td style="text-align:center">${ti(p.trend)}</td>
         <td>${pct(p.recentW,p.recentGm)}%</td>
         <td>${r2(p.gp)}</td>
