@@ -1227,7 +1227,7 @@ function profileBody(name, chartId) {
     .sort((a,b_) => b_.t-a.t).slice(0,8);
 
   // ── Chemistry & nemesis (min shared games for meaning) ──
-  const PAIR_MIN = 6, RIVAL_MIN = 6;
+  const PAIR_MIN = 20, RIVAL_MIN = 20;
   const pairPool = STATS.pairs
     .filter(x => (x.p1===name||x.p2===name) && x.t>=PAIR_MIN)
     .map(x => ({other:x.p1===name?x.p2:x.p1, t:x.t, w:x.w, wp:x.t?x.w/x.t:0}));
@@ -1418,6 +1418,15 @@ document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); }
 
 // ── Visitor tracking ──────────────────────────────────────────────────────────
 function initVisitor() {
+  // ── One-time visitor reset: force these names to re-select ──
+  // To evict someone again later: change the names AND bump VISITOR_RESET.
+  const VISITOR_RESET = 'r1';
+  const VISITOR_RESET_NAMES = ['מיקי'];
+  if (localStorage.getItem('soccer_visitor_reset') !== VISITOR_RESET) {
+    const cur = localStorage.getItem('soccer_visitor');
+    if (cur && VISITOR_RESET_NAMES.includes(cur)) localStorage.removeItem('soccer_visitor');
+    localStorage.setItem('soccer_visitor_reset', VISITOR_RESET);
+  }
   const names = [...STATS.players].sort((a,b)=>a.name.localeCompare(b.name,'he')).map(p=>p.name);
   const sel   = document.getElementById('visSelect');
   sel.innerHTML = ['<option value="">-- בחר --</option>',
