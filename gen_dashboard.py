@@ -29,7 +29,7 @@ MERGE_MAP = {
 
 SKIP_NAMES = {"עצמי", "שער עצמי"}
 
-MIN_GAMES_THRESHOLD = 10  # players with fewer games are treated as guests and excluded
+MIN_GAMES_THRESHOLD = 20  # players with fewer games are treated as guests and excluded
 
 def normalize(name):
     if not name: return None
@@ -336,6 +336,7 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
   <button class="active" onclick="showTab('overview',this)">🏠 סקירה</button>
   <button onclick="showTab('lastgame',this)">📋 מחזור אחרון</button>
   <button onclick="showTab('leaderboard',this)">🏆 מצטיינים</button>
+  <button onclick="showTab('records',this);buildRecords()">🏅 שיאים</button>
   <button onclick="showTab('kosher',this)">💪 כושר</button>
   <button onclick="showTab('h2h',this)">⚔️ ראש בראש</button>
   <button onclick="showTab('me',this);buildMe()">👤 הדף שלי</button>
@@ -393,7 +394,7 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
         <select id="lbYear" onchange="filterTable()"></select>
         <select id="minGames" onchange="filterTable()">
           <option value="1">כולם</option>
-          <option value="10">מינ׳ 10</option>
+          <option value="20">מינ׳ 20</option>
           <option value="50">מינ׳ 50</option>
           <option value="100" selected>מינ׳ 100</option>
         </select>
@@ -425,6 +426,15 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
     <h3>🏅 מלכי MVP כל הזמנים (2017+)</h3>
     <div class="tbl-wrap" id="mvpLeaderboard"></div>
   </div>
+</div>
+
+<!-- RECORDS -->
+<div id="tab-records" class="tab">
+  <div class="card" style="margin-bottom:12px">
+    <h3 style="border:none;padding:0;margin:0">🏅 שיאי כל הזמנים</h3>
+    <div style="font-size:.72rem;color:#475569;margin-top:4px">השיאים הגדולים ב-15 שנות כדורגל שישי — לחיצה על שם פותחת דף שחקן</div>
+  </div>
+  <div id="recordsBody"></div>
 </div>
 
 <!-- KOSHER -->
@@ -609,6 +619,23 @@ function yearStreaks(yr) {
   if (!_yearStreaksCache[yr])
     _yearStreaksCache[yr] = computeStreaks(GAMES.filter(g => (g.date||'').endsWith('/'+yr)));
   return _yearStreaksCache[yr];
+}
+
+// ── Per-player chronological game log (for recent form) ──────────────────────
+function playerGameLog(name) {
+  const log = [];
+  GAMES.forEach(g => {
+    const inA = (g.teamA||[]).some(p=>p.name===name);
+    const inB = (g.teamB||[]).some(p=>p.name===name);
+    if (!inA && !inB) return;
+    const sA = g.scoreA??0, sB = g.scoreB??0;
+    const my = inA?sA:sB, opp = inA?sB:sA;
+    const res = my>opp?'W':my<opp?'L':'D';
+    const pdat = (inA?g.teamA:g.teamB).find(p=>p.name===name) || {};
+    log.push({date:g.date, res, my, opp, g:pdat.goals||0, a:pdat.assists||0});
+  });
+  log.sort((x,y) => parseDate(x.date)-parseDate(y.date));
+  return log;
 }
 
 // ── Utils ────────────────────────────────────────────────────────────────────
@@ -806,6 +833,61 @@ function buildOverview() {
       </span>
     </div>`;
   }).join('') : '<div style="color:#475569;padding:8px">אין מספיק נתונים</div>';
+}
+
+// ── Records (Hall of Fame) ───────────────────────────────────────────────────
+function buildRecords() {
+  const KNOWN = new Set(STATS.players.map(p=>p.name));
+  // game-level scans
+  let bigWin=null, highScore=null, soloG=null, soloA=null;
+  GAMES.forEach(g => {
+    const sA=g.scoreA??0, sB=g.scoreB??0, tot=sA+sB, mar=Math.abs(sA-sB);
+    if (mar>0 && (!bigWin || mar>bigWin.mar)) bigWin={mar, hi:Math.max(sA,sB), lo:Math.min(sA,sB), date:g.date};
+    if (!highScore || tot>highScore.tot) highScore={tot, sA, sB, date:g.date};
+    [...(g.teamA||[]), ...(g.teamB||[])].forEach(p => {
+      if (!p.name || !KNOWN.has(p.name)) return;
+      if ((p.goals||0)   && (!soloG || p.goals>soloG.v))   soloG={v:p.goals,   name:p.name, date:g.date};
+      if ((p.assists||0) && (!soloA || p.assists>soloA.v)) soloA={v:p.assists, name:p.name, date:g.date};
+    });
+  });
+  // career leaders (players already filtered to MIN_GAMES_THRESHOLD)
+  const ps  = STATS.players;
+  const top = (arr,key) => arr.length ? [...arr].sort((a,b)=>b[key]-a[key])[0] : null;
+  const mostGames = top(ps,'gm'), mostG = top(ps,'g'), mostA = top(ps,'a');
+  const winp = [...ps].filter(p=>p.gm>=50).sort((a,b)=>(b.w/b.gm)-(a.w/a.gm))[0] || null;
+  // bonus leaders
+  const bonusArr = Object.values(BONUS);
+  const mostMvp = [...bonusArr].filter(b=>b.mvp>0).sort((a,b)=>b.mvp-a.mvp)[0] || null;
+  const mostWg  = [...bonusArr].filter(b=>b.wg>0).sort((a,b)=>b.wg-a.wg)[0]  || null;
+  // longest win streak ever
+  const bw = Object.entries(STREAKS).filter(([n])=>KNOWN.has(n)).sort((a,b)=>b[1].bestW-a[1].bestW)[0] || null;
+
+  const card = (icon, label, holder, big, sub) => `
+    <div class="hero-card">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <span style="font-size:1.5rem">${icon}</span>
+        <div style="font-size:.72rem;color:#64748b;font-weight:bold">${label}</div>
+      </div>
+      <div style="font-size:1.4rem;font-weight:bold;color:#fbbf24;line-height:1.1">${big}</div>
+      <div style="font-size:.82rem;margin-top:3px">${holder}</div>
+      ${sub?`<div style="font-size:.66rem;color:#64748b;margin-top:2px">${sub}</div>`:''}
+    </div>`;
+
+  const cards = [];
+  if (mostGames) cards.push(card('🎖️','הכי הרבה משחקים (ותק)', pl(mostGames.name), mostGames.gm, 'משחקים בקריירה'));
+  if (mostG)     cards.push(card('⚽','מלך השערים — כל הזמנים', pl(mostG.name), mostG.g, 'שערים בקריירה'));
+  if (mostA)     cards.push(card('🅰️','מלך הבישולים — כל הזמנים', pl(mostA.name), mostA.a, 'בישולים בקריירה'));
+  if (winp)      cards.push(card('🎯','אחוז הניצחון הגבוה ביותר', pl(winp.name), pct(winp.w,winp.gm)+'%', `${winp.w}/${winp.gm} · מינ׳ 50 משחקים`));
+  if (bw)        cards.push(card('🔥','רצף הניצחונות הארוך אי-פעם', pl(bw[0]), bw[1].bestW, streakRange(bw[1].bestWFrom, bw[1].bestWTo)));
+  if (soloG)     cards.push(card('💥','הכי הרבה שערים במשחק יחיד', pl(soloG.name), soloG.v, fmtD(soloG.date)));
+  if (soloA)     cards.push(card('✨','הכי הרבה בישולים במשחק יחיד', pl(soloA.name), soloA.v, fmtD(soloA.date)));
+  if (mostMvp)   cards.push(card('🏅','הכי הרבה MVP', pl(mostMvp.name), mostMvp.mvp, 'תארי שחקן המשחק'));
+  if (mostWg)    cards.push(card('⚡','הכי הרבה שערי ניצחון', pl(mostWg.name), mostWg.wg, 'שערים מכריעים'));
+  if (bigWin)    cards.push(card('🚀','הניצחון הגדול בהיסטוריה', `הפרש ${bigWin.mar} שערים`, `${bigWin.hi}:${bigWin.lo}`, fmtD(bigWin.date)));
+  if (highScore) cards.push(card('🎆','המשחק עתיר השערים', `${highScore.tot} שערים`, `${highScore.sA}:${highScore.sB}`, fmtD(highScore.date)));
+
+  document.getElementById('recordsBody').innerHTML =
+    `<div class="grid4">${cards.join('')}</div>`;
 }
 
 function newChart(id, type, labels, data, label, color, max) {
@@ -1144,6 +1226,52 @@ function profileBody(name, chartId) {
     })
     .sort((a,b_) => b_.t-a.t).slice(0,8);
 
+  // ── Chemistry & nemesis (min shared games for meaning) ──
+  const PAIR_MIN = 6, RIVAL_MIN = 6;
+  const pairPool = STATS.pairs
+    .filter(x => (x.p1===name||x.p2===name) && x.t>=PAIR_MIN)
+    .map(x => ({other:x.p1===name?x.p2:x.p1, t:x.t, w:x.w, wp:x.t?x.w/x.t:0}));
+  const bestMate  = pairPool.length ? [...pairPool].sort((a,b_)=>b_.wp-a.wp||b_.t-a.t)[0] : null;
+  const worstMate = pairPool.length ? [...pairPool].sort((a,b_)=>a.wp-b_.wp||b_.t-a.t)[0] : null;
+  const rivalPool = STATS.rivals
+    .filter(x => (x.p1===name||x.p2===name) && x.t>=RIVAL_MIN)
+    .map(x => { const is1=x.p1===name; const w=is1?x.fw:x.t-x.fw-x.d; const l=is1?x.t-x.fw-x.d:x.fw;
+      return {other:is1?x.p2:x.p1, t:x.t, w, l, wp:x.t?w/x.t:0}; });
+  const nemesis   = rivalPool.length ? [...rivalPool].sort((a,b_)=>a.wp-b_.wp||b_.t-a.t)[0] : null;
+  const favVictim = rivalPool.length ? [...rivalPool].sort((a,b_)=>b_.wp-a.wp||b_.t-a.t)[0] : null;
+  const chemTile = (lbl, icon, o, extra, col) => o ? `
+    <div class="stat-box" style="text-align:right;padding:8px 10px">
+      <div style="font-size:.64rem;color:#64748b;margin-bottom:2px">${icon} ${lbl}</div>
+      <div style="font-size:.9rem;font-weight:bold;color:${col}">${pl(o.other)}</div>
+      <div style="font-size:.64rem;color:#94a3b8;margin-top:1px">${extra(o)}</div>
+    </div>` : '';
+  const chemHtml = (bestMate||worstMate||nemesis||favVictim) ? `
+    <div style="font-size:.78rem;color:#64748b;font-weight:bold;margin:14px 0 6px">🧪 כימיה ויריבות <span style="font-weight:normal;color:#475569">(${PAIR_MIN}+ משחקים)</span></div>
+    <div class="grid4" style="gap:6px;margin-bottom:6px">
+      ${chemTile('חבר מנצח','🤝',bestMate,o=>`${pct(o.w,o.t)}% · ${o.t}מ׳`,'#10b981')}
+      ${chemTile('חבר ביש מזל','😬',worstMate,o=>`${pct(o.w,o.t)}% · ${o.t}מ׳`,'#ef4444')}
+      ${chemTile('נמסיס','😈',nemesis,o=>`${o.w}-${o.l} · ${pct(o.w,o.t)}%`,'#ef4444')}
+      ${chemTile('קורבן אהוב','🎯',favVictim,o=>`${o.w}-${o.l} · ${pct(o.w,o.t)}%`,'#10b981')}
+    </div>` : '';
+
+  // ── Recent form (last 10, newest first) ──
+  const _log = playerGameLog(name);
+  const recent = _log.slice(-10).reverse();
+  const rW=recent.filter(x=>x.res==='W').length, rD=recent.filter(x=>x.res==='D').length, rL=recent.filter(x=>x.res==='L').length;
+  const formPills = recent.map(x => {
+    const c=x.res==='W'?'sk-w':x.res==='L'?'sk-l':'sk-d';
+    const t=x.res==='W'?'נצ':x.res==='L'?'הפ':'ת';
+    return `<span class="sk ${c}" style="padding:3px 7px" title="${fmtD(x.date)} · ${x.my}:${x.opp}${x.g?` · ${x.g}⚽`:''}">${t}</span>`;
+  }).join(' ');
+  const formHtml = recent.length ? `
+    <div class="card" style="padding:10px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+        <span style="font-size:.78rem;color:#64748b;font-weight:bold">🔥 פורם — ${recent.length} משחקים אחרונים</span>
+        <span style="font-size:.72rem"><b style="color:#10b981">${rW}</b> נצח׳ · <b style="color:#fbbf24">${rD}</b> תיקו · <b style="color:#ef4444">${rL}</b> הפס׳</span>
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;direction:rtl">${formPills}</div>
+    </div>` : '';
+
   const skBadge = sk&&sk.type ? (() => {
     const cls=sk.type==='W'?'sk-w':sk.type==='L'?'sk-l':'sk-d';
     const lbl=sk.type==='W'?'ניצחונות ברצף':sk.type==='L'?'הפסדים ברצף':'תיקו';
@@ -1173,11 +1301,13 @@ function profileBody(name, chartId) {
       ${sBox('שיא ללא הפסד',     (sk&&sk.bestU) ? sk.bestU+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestUFrom, sk.bestUTo)}</div>` : '-', '#22d3ee')}
       ${sBox('שיא ללא ניצחון',   (sk&&sk.bestNW) ? sk.bestNW+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestNWFrom, sk.bestNWTo)}</div>` : '-', '#94a3b8')}
     </div>
+    ${formHtml}
     ${yrs.length>1 ? `
     <div class="card" style="padding:10px;margin-bottom:12px">
       <div style="font-size:.76rem;color:#64748b;margin-bottom:4px">📈 מגמה לפי שנה</div>
       <div class="modal-chart"><canvas id="${chartId}"></canvas></div>
     </div>` : ''}
+    ${chemHtml}
     <div class="grid2" style="gap:10px">
       <div>
         <div style="font-size:.78rem;color:#64748b;font-weight:bold;margin-bottom:6px">🤝 שותפים הכי נפוצים</div>
