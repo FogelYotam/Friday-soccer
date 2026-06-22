@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+
+# Local Claude Code config
+.claude/
+
+# Temp / build artifacts
+_check.js
+*.zip
+
+# Local data backups (full history is in git)
+games_data_backup_*.json
