@@ -39463,5 +39463,75 @@
     "scoreA": 8,
     "scoreB": 10,
     "mvp": "זליצקי"
+  },
+  {
+    "date": "6/26/2026",
+    "teamA": [
+      {
+        "name": "עידן",
+        "goals": 4,
+        "assists": 1
+      },
+      {
+        "name": "פוגל",
+        "goals": 4,
+        "assists": 3
+      },
+      {
+        "name": "אורן",
+        "goals": 0,
+        "assists": 1
+      },
+      {
+        "name": "ירון",
+        "goals": 0,
+        "assists": 1
+      },
+      {
+        "name": "עודד",
+        "goals": 1,
+        "assists": 0
+      },
+      {
+        "name": "מוטי",
+        "goals": 0,
+        "assists": 0
+      }
+    ],
+    "teamB": [
+      {
+        "name": "זלציקי",
+        "goals": 1,
+        "assists": 2
+      },
+      {
+        "name": "רותם",
+        "goals": 1,
+        "assists": 1
+      },
+      {
+        "name": "מוש",
+        "goals": 1,
+        "assists": 1
+      },
+      {
+        "name": "ליאון",
+        "goals": 2,
+        "assists": 1
+      },
+      {
+        "name": "רפי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "קצל",
+        "goals": 1,
+        "assists": 0
+      }
+    ],
+    "scoreA": 9,
+    "scoreB": 6,
+    "mvp": "עידן"
   }
 ]
