@@ -647,6 +647,8 @@ const STREAKS = computeStreaks(GAMES);
 
 // ── ELO power rating (chess-style, updated per game) ─────────────────────────
 // Each player starts at 1500. Expected result from team-average ratings; K=28.
+const ELO_MOVES = new Map();   // game object -> {name: ratingDelta}
+const ELO_UPSETS = [];         // surprising wins (underdog beat favourite)
 const ELO = (() => {
   const R={}, peak={}, gm={}, hist={}, K=28, START=1500;
   const get = n => (n in R) ? R[n] : START;
@@ -661,12 +663,21 @@ const ELO = (() => {
     const Sa = sA>sB?1 : sA<sB?0 : 0.5;
     const dA = K*(Sa-Ea);
     const yr = (g.date||'').match(/(\d{4})/)?.[1] || '';
+    const deltas={};
+    tA.forEach(n=>deltas[n]=dA); tB.forEach(n=>deltas[n]=-dA);
+    ELO_MOVES.set(g, deltas);
+    if (sA!==sB) {  // upset = winner was expected to lose (win-expectancy < 50%)
+      const we = sA>sB ? Ea : (1-Ea);
+      if (we < 0.5) ELO_UPSETS.push({game:g, surprise:0.5-we, winSide:sA>sB?'A':'B',
+        Ra:Math.round(Ra), Rb:Math.round(Rb)});
+    }
     const bump = (n, d) => {
       R[n]=get(n)+d; peak[n]=Math.max((n in peak)?peak[n]:START, R[n]);
       gm[n]=(gm[n]||0)+1; if(yr){ (hist[n]=hist[n]||{})[yr]=R[n]; }
     };
     tA.forEach(n=>bump(n,dA)); tB.forEach(n=>bump(n,-dA));
   });
+  ELO_UPSETS.sort((a,b)=>b.surprise-a.surprise);
   const out={};
   Object.keys(R).forEach(n=>out[n]={rating:Math.round(R[n]), peak:Math.round(peak[n]), gm:gm[n]||0, hist:hist[n]||{}});
   return out;
@@ -960,8 +971,30 @@ function buildRecords() {
   if (bigWin)    cards.push(card('🚀','הניצחון הגדול בהיסטוריה', `הפרש ${bigWin.mar} שערים`, `${bigWin.hi}:${bigWin.lo}`, fmtD(bigWin.date)));
   if (highScore) cards.push(card('🎆','המשחק עתיר השערים', `${highScore.tot} שערים`, `${highScore.sA}:${highScore.sB}`, fmtD(highScore.date)));
 
+  // biggest ELO upsets — underdog beat a much stronger side
+  const upsets = ELO_UPSETS.slice(0,8).map(u => {
+    const g=u.game, sA=g.scoreA??0, sB=g.scoreB??0;
+    const winTeam = u.winSide==='A'?g.teamA:g.teamB, loseTeam = u.winSide==='A'?g.teamB:g.teamA;
+    const winR = u.winSide==='A'?u.Ra:u.Rb, loseR = u.winSide==='A'?u.Rb:u.Ra;
+    const names = t => (t||[]).map(p=>p.name).join(', ');
+    return `<div class="pair-row" style="align-items:flex-start">
+      <span style="flex:1">
+        <b style="color:#10b981">${Math.max(sA,sB)}:${Math.min(sA,sB)}</b>
+        <span style="color:#64748b;font-size:.7rem"> · ${fmtD(g.date)}</span>
+        <div style="font-size:.7rem;color:#94a3b8;margin-top:2px">🏆 ${names(winTeam)} <span style="color:#475569">(ELO ${winR})</span></div>
+        <div style="font-size:.7rem;color:#64748b">מול ${names(loseTeam)} <span style="color:#475569">(ELO ${loseR})</span></div>
+      </span>
+      <span class="chip chip-orange" style="white-space:nowrap">הפתעה ${Math.round(u.surprise*200)}%</span>
+    </div>`;
+  }).join('');
+
   document.getElementById('recordsBody').innerHTML =
-    `<div class="grid4">${cards.join('')}</div>`;
+    `<div class="grid4">${cards.join('')}</div>` +
+    `<div class="card" style="margin-top:12px">
+      <h3>😲 ההפתעות הגדולות — דוד מול גוליית</h3>
+      <div style="font-size:.72rem;color:#475569;margin:2px 0 8px">משחקים שבהם הקבוצה החלשה (לפי דירוג ELO רגע לפני המשחק) ניצחה את החזקה</div>
+      ${upsets || '<div style="color:#475569;padding:8px">אין נתונים</div>'}
+    </div>`;
 }
 
 function newChart(id, type, labels, data, label, color, max) {
@@ -1283,7 +1316,46 @@ function showSelectedGame() {
   if (!game) { el.innerHTML='<div class="card">לא נמצא משחק לתאריך זה</div>'; return; }
   el.innerHTML = `<div class="card" style="margin-bottom:12px;text-align:center">
     <h2 style="margin:0">📅 ${game.date}</h2>
-  </div>` + renderGameCard(game);
+  </div>` + renderGameCard(game) + `
+    <div class="card" style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center">
+      <span style="font-size:.8rem;color:#64748b">שתף את הסיכום:</span>
+      <button id="copyBtn" onclick="copyGameSummary()" style="background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:.85rem">📋 העתק סיכום</button>
+      <button onclick="shareGameSummary()" style="background:#25D366;color:#0f172a;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:.85rem;font-weight:bold">💬 שתף לוואטסאפ</button>
+    </div>`;
+}
+// WhatsApp-ready recap for a single game
+function gameSummaryText(game) {
+  const sA=game.scoreA??0, sB=game.scoreB??0;
+  const res = sA>sB?'ניצחון קבוצה א׳' : sB>sA?'ניצחון קבוצה ב׳' : 'תיקו';
+  const scorers = [...(game.teamA||[]),...(game.teamB||[])].filter(p=>p.goals>0)
+    .sort((a,b)=>b.goals-a.goals).map(p=>`${p.name} ${p.goals}`).join(', ');
+  const moves = ELO_MOVES.get(game)||{};
+  const arr = Object.entries(moves).map(([n,d])=>({n,d})).sort((a,b)=>b.d-a.d);
+  const up=arr[0], down=arr[arr.length-1];
+  let t = `⚽ כדורגל שישי — ${game.date}\n`;
+  t += `תוצאה: ${sA} : ${sB}  (${res})\n`;
+  if (scorers)  t += `⚽ הבקיעו: ${scorers}\n`;
+  if (game.mvp) t += `🏅 MVP: ${game.mvp}\n`;
+  if (game.wg)  t += `🥅 שער ניצחון: ${game.wg}\n`;
+  if (up && up.d>0.5)     t += `📈 מטפס הדירוג: ${up.n} (+${Math.round(up.d)} ELO)\n`;
+  if (down && down.d<-0.5) t += `📉 צנח בדירוג: ${down.n} (${Math.round(down.d)} ELO)\n`;
+  t += `\n📊 הדשבורד המלא: fogelyotam.github.io/Friday-soccer`;
+  return t;
+}
+function _selectedGame() {
+  const date = document.getElementById('gameDateSel').value;
+  return [...GAMES].reverse().find(g => g.date===date);
+}
+function copyGameSummary() {
+  const g=_selectedGame(); if(!g) return;
+  navigator.clipboard.writeText(gameSummaryText(g)).then(()=>{
+    const b=document.getElementById('copyBtn');
+    if(b){ b.textContent='✓ הועתק!'; setTimeout(()=>b.textContent='📋 העתק סיכום',1600); }
+  });
+}
+function shareGameSummary() {
+  const g=_selectedGame(); if(!g) return;
+  window.open('https://wa.me/?text='+encodeURIComponent(gameSummaryText(g)),'_blank');
 }
 function renderGameCard(game) {
   const sA=game.scoreA??'?', sB=game.scoreB??'?';
@@ -1440,12 +1512,32 @@ function profileBody(name, chartId) {
   const sBox = (label, val, color) =>
     `<div class="stat-box"><div class="sv" style="color:${color}">${val}</div><div class="sl">${label}</div></div>`;
 
+  // ── Achievements / milestones (only earned tiers shown) ──
+  const badges = [];
+  const tierBadge = (val, tiers, icon, unit) => {
+    let best=0; tiers.forEach(t=>{ if(val>=t) best=t; });
+    if(best) badges.push(`${icon} ${best} ${unit}`);
+  };
+  tierBadge(p.gm, [100,200,300,400,500,600], '🎖️', 'משחקים');
+  tierBadge(p.g,  [100,250,500,750],         '⚽', 'שערים');
+  tierBadge(p.a,  [100,250,500],             '🅰️', 'בישולים');
+  tierBadge(b.mvp||0, [5,10,20],             '🏅', 'MVP');
+  if (sk && sk.bestW>=7)  badges.push(`🔥 רצף ${sk.bestW} ניצחונות`);
+  const _e = ELO[name];
+  if (_e && _e.peak>=1700) badges.push(`⚡ שיא ELO ${_e.peak}`);
+  if (p.gm>=50 && pct(p.w,p.gm)>=50) badges.push(`👑 מאזן חיובי ${pct(p.w,p.gm)}%`);
+  const badgesHtml = badges.length ? `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+      ${badges.map(x=>`<span style="background:#1e293b;border:1px solid #334155;color:#fbbf24;padding:4px 10px;font-size:.72rem;border-radius:12px">${x}</span>`).join('')}
+    </div>` : '';
+
   const html = `
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #334155">
       <h2 style="color:#fbbf24;font-size:1.35rem;margin:0">${name}</h2>
       <span style="background:#0f172a;color:#94a3b8;padding:3px 10px;border-radius:12px;font-size:.78rem">${p.gm} משחקים</span>
       ${skBadge}
     </div>
+    ${badgesHtml}
     <div class="pstats" style="margin-bottom:14px">
       ${sBox('ניצחונות', p.w, '#10b981')}
       ${sBox('הפסדים',   p.l, '#ef4444')}
