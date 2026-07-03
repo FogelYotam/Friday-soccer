@@ -1204,6 +1204,28 @@ function renderGameCard(game) {
   ${game.wg ?`<div style="margin-top:4px;text-align:center"><span class="chip chip-green">🥅 שער ניצחון: ${pl(game.wg)}</span></div>`:''}`;
 }
 
+// Head-to-head rivalry stats for one player, limited to games within `days` of today.
+// Rolling window (uses today's date) so old rivalries drop off over time.
+function rivalsWithin(name, days) {
+  const cut = Date.now() - days*86400000;
+  const acc = {};
+  GAMES.forEach(g => {
+    if (parseDate(g.date) < cut) return;
+    const inA=(g.teamA||[]).some(p=>p.name===name);
+    const inB=(g.teamB||[]).some(p=>p.name===name);
+    if (!inA && !inB) return;
+    const sA=g.scoreA??0, sB=g.scoreB??0;
+    const myWin  = inA ? sA>sB : sB>sA;
+    const myLoss = inA ? sA<sB : sB<sA;
+    (inA ? (g.teamB||[]) : (g.teamA||[])).forEach(o => {
+      if (!o.name) return;
+      if (!acc[o.name]) acc[o.name] = {other:o.name, t:0, w:0, l:0};
+      acc[o.name].t++; if (myWin) acc[o.name].w++; else if (myLoss) acc[o.name].l++;
+    });
+  });
+  return Object.values(acc).map(x => ({...x, wp:x.t?x.w/x.t:0}));
+}
+
 // ── Player Profile Modal ──────────────────────────────────────────────────────
 let _modalChart = null, _meChart = null;
 // Returns the full profile HTML for a player (used by modal + my-page tab)
@@ -1236,10 +1258,8 @@ function profileBody(name, chartId) {
     .map(x => ({other:x.p1===name?x.p2:x.p1, t:x.t, w:x.w, wp:x.t?x.w/x.t:0}));
   const bestMate  = pairPool.length ? [...pairPool].sort((a,b_)=>b_.wp-a.wp||b_.t-a.t)[0] : null;
   const worstMate = pairPool.length ? [...pairPool].sort((a,b_)=>a.wp-b_.wp||b_.t-a.t)[0] : null;
-  const rivalPool = STATS.rivals
-    .filter(x => (x.p1===name||x.p2===name) && x.t>=RIVAL_MIN)
-    .map(x => { const is1=x.p1===name; const w=is1?x.fw:x.t-x.fw-x.d; const l=is1?x.t-x.fw-x.d:x.fw;
-      return {other:is1?x.p2:x.p1, t:x.t, w, l, wp:x.t?w/x.t:0}; });
+  // rivalries: last 5 years only, ≥20 shared games in that window (rolls forward over time)
+  const rivalPool = rivalsWithin(name, 5*365).filter(x => x.t>=RIVAL_MIN);
   const nemesis   = rivalPool.length ? [...rivalPool].sort((a,b_)=>a.wp-b_.wp||b_.t-a.t)[0] : null;
   const favVictim = rivalPool.length ? [...rivalPool].sort((a,b_)=>b_.wp-a.wp||b_.t-a.t)[0] : null;
   const chemTile = (lbl, icon, o, extra, col) => o ? `
@@ -1253,8 +1273,8 @@ function profileBody(name, chartId) {
     <div class="grid4" style="gap:6px;margin-bottom:6px">
       ${chemTile('חבר מנצח','🤝',bestMate,o=>`${pct(o.w,o.t)}% · ${o.t}מ׳`,'#10b981')}
       ${chemTile('חבר ביש מזל','😬',worstMate,o=>`${pct(o.w,o.t)}% · ${o.t}מ׳`,'#ef4444')}
-      ${chemTile('נמסיס','😈',nemesis,o=>`${o.w}-${o.l} · ${pct(o.w,o.t)}%`,'#ef4444')}
-      ${chemTile('קורבן אהוב','🎯',favVictim,o=>`${o.w}-${o.l} · ${pct(o.w,o.t)}%`,'#10b981')}
+      ${chemTile('נמסיס (5 ש׳)','😈',nemesis,o=>`${o.w}-${o.l} · ${pct(o.w,o.t)}%`,'#ef4444')}
+      ${chemTile('קורבן אהוב (5 ש׳)','🎯',favVictim,o=>`${o.w}-${o.l} · ${pct(o.w,o.t)}%`,'#10b981')}
     </div>` : '';
 
   // ── Recent form (last 10, newest first) ──
