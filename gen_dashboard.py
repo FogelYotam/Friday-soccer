@@ -698,8 +698,8 @@ const ELO = (() => {
 })();
 
 // Recency-weighted ELO power rating: average ELO in each 180-day window,
-// weighted 5·4·3·2·1 from most recent. Rolls forward over time; older than 900d ignored.
-const ELO_FORM_WEIGHTS = [5,4,3,2,1];
+// weighted 4·3·2·1 from most recent. Rolls forward over time; older than 720d ignored.
+const ELO_FORM_WEIGHTS = [4,3,2,1];
 function eloForm(name) {
   const s = ELO_SERIES[name]; if (!s || !s.length) return null;
   const now = Date.now(), W = 180*24*60*60*1000;
@@ -1157,7 +1157,7 @@ let ksrSortKey='rating', ksrSortDir=-1, _ksrRows=[];
 function buildKosher() {
   const min = parseInt(document.getElementById('kosherMinGames').value)||5;
   document.getElementById('kosherFormula').textContent =
-    'דירוג כוח = ELO משוקלל לפי טריות. ה-ELO הממוצע ב-5 חלונות של 180 יום, במשקלים יורדים: אחרון ×5 · הבא ×4 · ×3 · ×2 · ×1. משחקים מלפני 900 יום לא נספרים. מוצגים רק מי ששיחק בטווח.';
+    'דירוג כוח = ELO משוקלל לפי טריות. ה-ELO הממוצע ב-4 חלונות של 180 יום, במשקלים יורדים: אחרון ×4 · הבא ×3 · ×2 · ×1. משחקים מלפני 720 יום לא נספרים. מוצגים רק מי ששיחק בטווח.';
 
   _ksrRows = STATS.players
     .map(p => ({p, f: eloForm(p.name)}))
@@ -1171,7 +1171,7 @@ function buildKosher() {
       let trend='same';
       if (recent && older) { if(recent.avg>older.avg+15) trend='up'; else if(recent.avg<older.avg-15) trend='down'; }
       return {name:p.name, rating:f.rating, cur, recentGm:f.gm, trend,
-        w1:w[0], w2:w[1], w3:w[2], w4:w[3], w5:w[4]};
+        w1:w[0], w2:w[1], w3:w[2], w4:w[3]};
     });
   renderKosherTable();
 }
@@ -1194,13 +1194,12 @@ function renderKosherTable() {
     <table><thead><tr>
       <th>#</th>
       <th onclick="sortKosher('name')" style="text-align:right;${ksrSortKey==='name'?'color:#fff':''}">שחקן${ksrSortKey==='name'?(ksrSortDir===-1?' ▼':' ▲'):''}</th>
-      ${thK('recentGm', 'מ׳ (900י)')}
+      ${thK('recentGm', 'מ׳ (720י)')}
       <th>מגמה</th>
-      ${thK('w1','180 אחר׳ ×5')}
-      ${thK('w2','×4')}
-      ${thK('w3','×3')}
-      ${thK('w4','×2')}
-      ${thK('w5','×1')}
+      ${thK('w1','180 אחר׳ ×4')}
+      ${thK('w2','×3')}
+      ${thK('w3','×2')}
+      ${thK('w4','×1')}
       ${thK('cur','ELO נוכ׳')}
       <th>רצף</th>
       ${thK('rating','דירוג כוח ★')}
@@ -1214,8 +1213,7 @@ function renderKosherTable() {
         <td style="color:#e2e8f0">${wc(p.w1)}</td>
         <td style="color:#94a3b8">${wc(p.w2)}</td>
         <td style="color:#64748b">${wc(p.w3)}</td>
-        <td style="color:#64748b">${wc(p.w4)}</td>
-        <td style="color:#475569">${wc(p.w5)}</td>
+        <td style="color:#475569">${wc(p.w4)}</td>
         <td style="color:#3b82f6">${p.cur}</td>
         <td>${skHtml(p.name)}</td>
         <td>
