@@ -472,6 +472,24 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
     <div style="font-size:.72rem;color:#475569;margin-bottom:8px;padding:6px 10px;background:#0f172a;border-radius:6px" id="kosherFormula"></div>
     <div class="tbl-wrap" id="kosherTable"></div>
   </div>
+
+  <div class="card" style="margin-top:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <h3 style="border:none;padding:0;margin:0">⚡ דירוג כוח ELO — כל הזמנים</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:.75rem;color:#64748b">מינ׳ משחקים:</span>
+        <select id="eloMinGames" onchange="buildElo()">
+          <option value="20">20+</option>
+          <option value="50" selected>50+</option>
+          <option value="100">100+</option>
+        </select>
+      </div>
+    </div>
+    <div style="font-size:.72rem;color:#475569;margin-bottom:8px;padding:6px 10px;background:#0f172a;border-radius:6px">
+      כל שחקן מתחיל ב-1500. אחרי כל משחק הדירוג עולה/יורד לפי התוצאה מול <b>הציפייה</b> (חוזק היריבים מול חוזק חבריך לקבוצה) — כמו דירוג שחמט. ניצחון על קבוצה חזקה שווה יותר.
+    </div>
+    <div class="tbl-wrap" id="eloTable"></div>
+  </div>
 </div>
 
 <!-- H2H -->
@@ -626,6 +644,33 @@ function computeStreaks(games) {
   return s;
 }
 const STREAKS = computeStreaks(GAMES);
+
+// ── ELO power rating (chess-style, updated per game) ─────────────────────────
+// Each player starts at 1500. Expected result from team-average ratings; K=28.
+const ELO = (() => {
+  const R={}, peak={}, gm={}, hist={}, K=28, START=1500;
+  const get = n => (n in R) ? R[n] : START;
+  [...GAMES].sort((a,b)=>parseDate(a.date)-parseDate(b.date)).forEach(g => {
+    const tA=(g.teamA||[]).map(p=>p.name).filter(Boolean);
+    const tB=(g.teamB||[]).map(p=>p.name).filter(Boolean);
+    if (!tA.length || !tB.length) return;
+    const Ra=tA.reduce((s,n)=>s+get(n),0)/tA.length;
+    const Rb=tB.reduce((s,n)=>s+get(n),0)/tB.length;
+    const Ea=1/(1+Math.pow(10,(Rb-Ra)/400));
+    const sA=g.scoreA??0, sB=g.scoreB??0;
+    const Sa = sA>sB?1 : sA<sB?0 : 0.5;
+    const dA = K*(Sa-Ea);
+    const yr = (g.date||'').match(/(\d{4})/)?.[1] || '';
+    const bump = (n, d) => {
+      R[n]=get(n)+d; peak[n]=Math.max((n in peak)?peak[n]:START, R[n]);
+      gm[n]=(gm[n]||0)+1; if(yr){ (hist[n]=hist[n]||{})[yr]=R[n]; }
+    };
+    tA.forEach(n=>bump(n,dA)); tB.forEach(n=>bump(n,-dA));
+  });
+  const out={};
+  Object.keys(R).forEach(n=>out[n]={rating:Math.round(R[n]), peak:Math.round(peak[n]), gm:gm[n]||0, hist:hist[n]||{}});
+  return out;
+})();
 const _yearStreaksCache = {};
 function yearStreaks(yr) {
   if (!_yearStreaksCache[yr])
@@ -1137,6 +1182,34 @@ function renderKosherTable() {
     </tbody></table>`;
 }
 
+// ── ELO power ranking ─────────────────────────────────────────────────────────
+function buildElo() {
+  const min = parseInt(document.getElementById('eloMinGames').value)||50;
+  const rows = STATS.players
+    .map(p => ({name:p.name, ...(ELO[p.name]||{rating:1500,peak:1500,gm:0,hist:{}})}))
+    .filter(p => p.gm >= min)
+    .sort((a,b) => b.rating - a.rating);
+  const maxR = Math.max(...rows.map(r=>r.rating), 1501);
+  const minR = Math.min(...rows.map(r=>r.rating), 1499);
+  document.getElementById('eloTable').innerHTML = `
+    <table><thead><tr>
+      <th>#</th><th style="text-align:right">שחקן</th>
+      <th>ELO</th><th>שיא</th><th>משחקים</th><th style="width:30%">דירוג</th>
+    </tr></thead><tbody>${rows.map((p,i) => {
+      const w = Math.round(100*(p.rating-minR)/Math.max(maxR-minR,1));
+      const col = p.rating>=1600?'#10b981':p.rating>=1500?'#3b82f6':p.rating>=1420?'#f59e0b':'#ef4444';
+      const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1);
+      return `<tr>
+        <td>${medal}</td>
+        <td style="text-align:right;font-weight:bold">${pl(p.name)}</td>
+        <td style="font-weight:bold;color:${col}">${p.rating}</td>
+        <td style="color:#64748b">${p.peak}</td>
+        <td style="color:#64748b">${p.gm}</td>
+        <td><div class="bar-wrap"><div class="bar" style="width:${w}%;background:${col}"></div></div></td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
 // ── H2H ───────────────────────────────────────────────────────────────────────
 function calcH2H() {
   const pA=document.getElementById('h2hA').value, pB=document.getElementById('h2hB').value;
@@ -1382,6 +1455,7 @@ function profileBody(name, chartId) {
       ${sBox('בישולים', p.a, '#8b5cf6')}
       ${sBox('MVP',   b.mvp||'-', '#f59e0b')}
       ${sBox("שניצ'",  b.wg||'-',  '#10b981')}
+      ${(()=>{const e=ELO[name]; return e?sBox('דירוג כוח ELO', e.rating+`<div style="font-size:.55rem;color:#64748b;font-weight:normal">שיא ${e.peak}</div>`, e.rating>=1600?'#10b981':e.rating>=1500?'#3b82f6':'#f59e0b'):'';})()}
       ${sBox('שיא רצף ניצחונות', (sk&&sk.bestW) ? sk.bestW+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestWFrom, sk.bestWTo)}</div>` : '-', '#fb923c')}
       ${sBox('שיא ללא הפסד',     (sk&&sk.bestU) ? sk.bestU+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestUFrom, sk.bestUTo)}</div>` : '-', '#22d3ee')}
       ${sBox('שיא ללא ניצחון',   (sk&&sk.bestNW) ? sk.bestNW+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestNWFrom, sk.bestNWTo)}</div>` : '-', '#94a3b8')}
@@ -1577,6 +1651,7 @@ buildOverview();
 buildLeaderboard();
 buildMVPLeaderboard();
 buildKosher();
+buildElo();
 buildLastGame();
 calcH2H();
 initVisitor();
