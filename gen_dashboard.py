@@ -461,6 +461,19 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
 
 <!-- KOSHER -->
 <div id="tab-kosher" class="tab">
+  <details class="card" style="margin-bottom:12px">
+    <summary style="cursor:pointer;color:#fbbf24;font-weight:bold;font-size:.9rem;list-style:none">❓ מה זה דירוג ELO? (הסבר קצר)</summary>
+    <div style="font-size:.82rem;color:#cbd5e1;line-height:1.7;margin-top:10px">
+      <p style="margin-bottom:8px">זו שיטת דירוג שמשמשת בשחמט ובדירוגי הנבחרות בכדורגל (FIFA). היא נותנת לכל שחקן <b style="color:#fbbf24">מספר אחד</b> שמייצג את החוזק שלו — כמה שהמספר גבוה יותר, השחקן חזק יותר.</p>
+      <ul style="margin:0 18px 8px 0;padding:0">
+        <li>כולם מתחילים מ-<b>1500</b>.</li>
+        <li><b style="color:#10b981">מנצחים</b> → הדירוג עולה. <b style="color:#ef4444">מפסידים</b> → יורד.</li>
+        <li>הקסם: <b>ניצחון על קבוצה חזקה שווה יותר נקודות</b> מניצחון על חלשה — כי המערכת יודעת מי היו היריבים והשותפים שלך.</li>
+        <li>לכן זה מדד הוגן יותר מ"כמה ניצחונות" — שחקן טוב שהיה בקבוצה חלשה עדיין יעלה.</li>
+      </ul>
+      <p style="color:#94a3b8;font-size:.76rem">ה-<b style="color:#fbbf24">דירוג כוח</b> שבטבלה = ה-ELO שלך <b>מהזמן האחרון</b>: 4 חלונות של חצי שנה, כשהחודשים האחרונים נספרים הכי הרבה. אז זה משקף כמה אתה חזק <b>עכשיו</b>, לא לפני 10 שנים.</p>
+    </div>
+  </details>
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <h3 style="border:none;padding:0;margin:0">💪 דירוג כוח — ELO משוקלל לטריות</h3>
