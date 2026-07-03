@@ -1,0 +1,16 @@
+{
+  "name": "כדורגל שישי - דשבורד",
+  "short_name": "כדורגל שישי",
+  "description": "דשבורד סטטיסטיקות לקבוצת כדורגל שישי",
+  "start_url": "index.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "he",
+  "dir": "rtl",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

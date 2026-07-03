@@ -19,6 +19,7 @@ MERGE_MAP = {
     "בבצוק":            "בבצ'וק",
     "באבצוק":           "בבצ'וק",
     "יוני?":            "יוני",
+    "מוטי?":            "מוטי",
     "יוני חבר של רן":   "יוני",
     "תומר":             "תומר סגל",
     "אסף חדש":          "אסף בן ארי",
@@ -256,6 +257,13 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>כדורגל שישי - דשבורד</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="כדורגל שישי">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" href="icon.svg">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1412,6 +1420,23 @@ function shareGameSummary() {
   const g=_selectedGame(); if(!g) return;
   window.open('https://wa.me/?text='+encodeURIComponent(gameSummaryText(g)),'_blank');
 }
+// Shareable player stat card (WhatsApp)
+function playerSummaryText(name) {
+  const p=STATS.players.find(x=>x.name===name); if(!p) return '';
+  const b=BONUS[name]||{mvp:0,wg:0}, sk=STREAKS[name]||{}, e=ELO[name]||{};
+  let t = `👤 ${name} — כדורגל שישי\n`;
+  t += `🎮 ${p.gm} משחקים · ${p.w} נצ׳ (${pct(p.w,p.gm)}%)\n`;
+  t += `⚽ ${p.g} שערים · 🅰️ ${p.a} בישולים\n`;
+  if (b.mvp) t += `🏅 ${b.mvp} MVP`;
+  if (e.rating) t += `${b.mvp?' · ':''}⚡ ELO ${e.rating}`;
+  if (b.mvp||e.rating) t += `\n`;
+  if (sk.bestW) t += `🔥 שיא רצף: ${sk.bestW} ניצחונות\n`;
+  t += `\n📊 fogelyotam.github.io/Friday-soccer`;
+  return t;
+}
+function sharePlayer(name) {
+  window.open('https://wa.me/?text='+encodeURIComponent(playerSummaryText(name)),'_blank');
+}
 function renderGameCard(game) {
   const sA=game.scoreA??'?', sB=game.scoreB??'?';
   const winner=sA>sB?'A':sB>sA?'B':'X';
@@ -1591,6 +1616,8 @@ function profileBody(name, chartId) {
       <h2 style="color:#fbbf24;font-size:1.35rem;margin:0">${name}</h2>
       <span style="background:#0f172a;color:#94a3b8;padding:3px 10px;border-radius:12px;font-size:.78rem">${p.gm} משחקים</span>
       ${skBadge}
+      <button onclick="sharePlayer(${JSON.stringify(name)})" title="שתף כרטיס שחקן"
+        style="margin-right:auto;background:#25D366;color:#0f172a;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:.75rem;font-weight:bold">💬 שתף</button>
     </div>
     ${badgesHtml}
     <div class="pstats" style="margin-bottom:14px">
