@@ -208,7 +208,7 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
 <div id="tab-kosher" class="tab">
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-      <h3 style="border:none;padding:0;margin:0">💪 דירוג כושר שחקנים</h3>
+      <h3 style="border:none;padding:0;margin:0">💪 דירוג כוח — ELO משוקלל לטריות</h3>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <span style="font-size:.75rem;color:#64748b">מינ׳ משחקים:</span>
         <select id="kosherMinGames" onchange="buildKosher()">
@@ -402,8 +402,9 @@ const STREAKS = computeStreaks(GAMES);
 
 // ── ELO power rating (chess-style, updated per game) ─────────────────────────
 // Each player starts at 1500. Expected result from team-average ratings; K=28.
-const ELO_MOVES = new Map();   // game object -> {name: ratingDelta}
+const ELO_MOVES = new Map();   // game object -> {name: {d:delta, r:postRating}}
 const ELO_UPSETS = [];         // surprising wins (underdog beat favourite)
+const ELO_SERIES = {};         // name -> [{t:timestamp, r:rating}] chronological
 const ELO = (() => {
   const R={}, peak={}, gm={}, hist={}, K=28, START=1500;
   const get = n => (n in R) ? R[n] : START;
@@ -418,9 +419,9 @@ const ELO = (() => {
     const Sa = sA>sB?1 : sA<sB?0 : 0.5;
     const dA = K*(Sa-Ea);
     const yr = (g.date||'').match(/(\d{4})/)?.[1] || '';
+    const t  = parseDate(g.date);
     const deltas={};
-    tA.forEach(n=>deltas[n]=dA); tB.forEach(n=>deltas[n]=-dA);
-    ELO_MOVES.set(g, deltas);
+    tA.forEach(n=>deltas[n]={d:dA}); tB.forEach(n=>deltas[n]={d:-dA});
     if (sA!==sB) {  // upset = winner was expected to lose (win-expectancy < 50%)
       const we = sA>sB ? Ea : (1-Ea);
       if (we < 0.5) ELO_UPSETS.push({game:g, surprise:0.5-we, winSide:sA>sB?'A':'B',
@@ -429,14 +430,36 @@ const ELO = (() => {
     const bump = (n, d) => {
       R[n]=get(n)+d; peak[n]=Math.max((n in peak)?peak[n]:START, R[n]);
       gm[n]=(gm[n]||0)+1; if(yr){ (hist[n]=hist[n]||{})[yr]=R[n]; }
+      (ELO_SERIES[n]=ELO_SERIES[n]||[]).push({t, r:R[n]});
+      if (deltas[n]) deltas[n].r = Math.round(R[n]);
     };
     tA.forEach(n=>bump(n,dA)); tB.forEach(n=>bump(n,-dA));
+    ELO_MOVES.set(g, deltas);
   });
   ELO_UPSETS.sort((a,b)=>b.surprise-a.surprise);
   const out={};
   Object.keys(R).forEach(n=>out[n]={rating:Math.round(R[n]), peak:Math.round(peak[n]), gm:gm[n]||0, hist:hist[n]||{}});
   return out;
 })();
+
+// Recency-weighted ELO power rating: average ELO in each 180-day window,
+// weighted 5·4·3·2·1 from most recent. Rolls forward over time; older than 900d ignored.
+const ELO_FORM_WEIGHTS = [5,4,3,2,1];
+function eloForm(name) {
+  const s = ELO_SERIES[name]; if (!s || !s.length) return null;
+  const now = Date.now(), W = 180*24*60*60*1000;
+  let num=0, den=0, gmRecent=0, wins=[];
+  for (let i=0; i<ELO_FORM_WEIGHTS.length; i++) {
+    const hi = now - i*W, lo = now - (i+1)*W;
+    const inWin = s.filter(x => x.t < hi && x.t >= lo);
+    if (!inWin.length) { wins.push(null); continue; }
+    const avg = inWin.reduce((a,x)=>a+x.r,0)/inWin.length;
+    num += avg*ELO_FORM_WEIGHTS[i]; den += ELO_FORM_WEIGHTS[i]; gmRecent += inWin.length;
+    wins.push({avg:Math.round(avg), gm:inWin.length});
+  }
+  if (!den) return null;
+  return {rating:Math.round(num/den), gm:gmRecent, wins};
+}
 const _yearStreaksCache = {};
 function yearStreaks(yr) {
   if (!_yearStreaksCache[yr])
@@ -874,64 +897,26 @@ function buildMVPLeaderboard() {
     }).join('')}</tbody></table>`;
 }
 
-// ── Kosher (day-window based: last 180 days ×2 + previous 180 days ×1) ───────
+// ── Form rating = recency-weighted ELO (last 180d ×5 … 900d ×1) ──────────────
 let ksrSortKey='rating', ksrSortDir=-1, _ksrRows=[];
-const KSR_DAY = 24*60*60*1000;
-function winScore(wd) {
-  if (!wd || wd.gm<1) return null;
-  return (wd.w/wd.gm)*40 + (wd.g/wd.gm)*20 + (wd.a/wd.gm)*10 + (wd.mvp/wd.gm)*30 + (wd.wg/wd.gm)*20;
-}
 function buildKosher() {
   const min = parseInt(document.getElementById('kosherMinGames').value)||5;
-  const ref = Math.max(...GAMES.map(g=>parseDate(g.date)));  // date of latest game
-  const cutA = ref - 180*KSR_DAY;   // window A: last 180 days
-  const cutB = ref - 360*KSR_DAY;   // window B: 180 days before that
-  const cutActive = ref - 730*KSR_DAY;  // eligibility: played within the last 730 days
   document.getElementById('kosherFormula').textContent =
-    'מוצגים רק מי ששיחקו ב-730 הימים האחרונים | ניקוד = ממוצע משוקלל: 180 הימים האחרונים ×4 + 180 שלפניהם ×2 + עד 730 ימים ×1 | נוסחה: %נצח×40 + ש/מ×20 + ב/מ×10 + MVP/מ×30 + שניצ׳/מ×20';
-
-  // aggregate per player per window from raw games
-  // A = last 180d, B = 180-360d, C = 360-730d (all scored, with decreasing weight)
-  const agg = {};  // name -> {A:{gm,w,g,a,mvp,wg}, B:{...}, C:{...}}
-  const blank = () => ({gm:0,w:0,g:0,a:0,mvp:0,wg:0});
-  GAMES.forEach(g => {
-    const t = parseDate(g.date);
-    if (t < cutActive) return;
-    const wnd = t >= cutA ? 'A' : t >= cutB ? 'B' : 'C';
-    const sA=g.scoreA??0, sB=g.scoreB??0;
-    const res = team => team==='A' ? (sA>sB?'w':sA<sB?'l':'d') : (sB>sA?'w':sB<sA?'l':'d');
-    [['A', g.teamA||[]], ['B', g.teamB||[]]].forEach(([team, list]) => {
-      list.forEach(p => {
-        if (!p.name) return;
-        if (!agg[p.name]) agg[p.name] = {A:blank(), B:blank(), C:blank()};
-        const w = agg[p.name][wnd];
-        w.gm++; if (res(team)==='w') w.w++;
-        w.g += p.goals||0; w.a += p.assists||0;
-      });
-    });
-    if (g.mvp && agg[g.mvp]) agg[g.mvp][wnd].mvp++;
-    if (g.wg  && agg[g.wg])  agg[g.wg][wnd].wg++;
-  });
+    'דירוג כוח = ELO משוקלל לפי טריות. ה-ELO הממוצע ב-5 חלונות של 180 יום, במשקלים יורדים: אחרון ×5 · הבא ×4 · ×3 · ×2 · ×1. משחקים מלפני 900 יום לא נספרים. מוצגים רק מי ששיחק בטווח.';
 
   _ksrRows = STATS.players
-    .filter(p => agg[p.name] && (agg[p.name].A.gm + agg[p.name].B.gm + agg[p.name].C.gm) >= min)
-    .map(p => {
-      const {A, B, C} = agg[p.name];
-      const scA = winScore(A), scB = winScore(B), scC = winScore(C);
-      let wSum=0, wTot=0;
-      if (scA!==null) { wSum+=scA*4; wTot+=4; }
-      if (scB!==null) { wSum+=scB*2; wTot+=2; }
-      if (scC!==null) { wSum+=scC*1; wTot+=1; }
-      const rating = wTot>0 ? wSum/wTot : 0;
+    .map(p => ({p, f: eloForm(p.name)}))
+    .filter(x => x.f && x.f.gm >= min)
+    .map(({p, f}) => {
+      const cur = (ELO[p.name]||{}).rating || 1500;
+      const w = f.wins;  // per-window {avg,gm} or null, index 0 = most recent
+      // trend: newest window avg vs the next non-empty older window
+      const recent = w.find(x=>x); let older=null;
+      for (let i=1;i<w.length;i++){ if(w[i]){older=w[i];break;} }
       let trend='same';
-      if (scA!==null&&scB!==null) { if(scA>scB*1.05) trend='up'; else if(scA<scB*0.95) trend='down'; }
-      else if (scA!==null) trend='up';
-      else if (scB!==null) trend='down';
-      const gm=A.gm+B.gm+C.gm, w=A.w+B.w+C.w, g=A.g+B.g+C.g, a=A.a+B.a+C.a;
-      return {...p, rating, trend, recentGm:gm, recentW:w,
-        gmA:A.gm, gmB:B.gm, gmC:C.gm,
-        wp:gm>0?w/gm:0, gp:gm>0?g/gm:0, ap:gm>0?a/gm:0,
-        mvp_n:A.mvp+B.mvp+C.mvp, wg_n:A.wg+B.wg+C.wg};
+      if (recent && older) { if(recent.avg>older.avg+15) trend='up'; else if(recent.avg<older.avg-15) trend='down'; }
+      return {name:p.name, rating:f.rating, cur, recentGm:f.gm, trend,
+        w1:w[0], w2:w[1], w3:w[2], w4:w[3], w5:w[4]};
     });
   renderKosherTable();
 }
@@ -941,49 +926,46 @@ function sortKosher(key) {
 }
 function renderKosherTable() {
   const rows = [..._ksrRows].sort((a,b) => {
-    // dir=-1 means descending (most in-form first)
     const va=a[ksrSortKey]??0, vb=b[ksrSortKey]??0;
     if (typeof va==='string') return ksrSortDir*(va<vb?1:va>vb?-1:0);
     return ksrSortDir*(va-vb);
   });
-  const maxR = Math.max(...rows.map(r=>r.rating), 0.01);
+  const maxR = Math.max(...rows.map(r=>r.rating), 1501);
+  const minR = Math.min(...rows.map(r=>r.rating), 1499);
   const ti   = t => t==='up'?'<span class="trend-up">↑</span>':t==='down'?'<span class="trend-down">↓</span>':'<span class="trend-same">→</span>';
   const thK  = (key,label) => `<th onclick="sortKosher('${key}')" style="${ksrSortKey===key?'color:#fff':''}">${label}${ksrSortKey===key?(ksrSortDir===-1?' ▼':' ▲'):''}</th>`;
+  const wc = o => o ? `${o.avg}<div style="font-size:.58rem;color:#475569">${o.gm}מ׳</div>` : '-';
   document.getElementById('kosherTable').innerHTML = `
     <table><thead><tr>
       <th>#</th>
       <th onclick="sortKosher('name')" style="text-align:right;${ksrSortKey==='name'?'color:#fff':''}">שחקן${ksrSortKey==='name'?(ksrSortDir===-1?' ▼':' ▲'):''}</th>
-      ${thK('recentGm', 'מ׳ סה"כ')}
-      ${thK('gmA', '180 אחרונים')}
-      ${thK('gmB', '180 שלפני')}
-      ${thK('gmC', '360-730')}
+      ${thK('recentGm', 'מ׳ (900י)')}
       <th>מגמה</th>
-      ${thK('wp','%נצח')}
-      ${thK('gp','ש/מ')}
-      ${thK('ap','ב/מ')}
-      ${thK('mvp_n','MVP')}
-      ${thK('wg_n','שניצ׳')}
+      ${thK('w1','180 אחר׳ ×5')}
+      ${thK('w2','×4')}
+      ${thK('w3','×3')}
+      ${thK('w4','×2')}
+      ${thK('w5','×1')}
+      ${thK('cur','ELO נוכ׳')}
       <th>רצף</th>
-      ${thK('rating','ניקוד ★')}
+      ${thK('rating','דירוג כוח ★')}
     </tr></thead>
     <tbody>${rows.map((p,i)=>`
       <tr>
         <td>${i+1}</td>
         <td style="text-align:right;font-weight:bold">${pl(p.name)}</td>
         <td>${p.recentGm}</td>
-        <td style="color:#94a3b8">${p.gmA||'-'}</td>
-        <td style="color:#475569">${p.gmB||'-'}</td>
-        <td style="color:#475569">${p.gmC||'-'}</td>
         <td style="text-align:center">${ti(p.trend)}</td>
-        <td>${pct(p.recentW,p.recentGm)}%</td>
-        <td>${r2(p.gp)}</td>
-        <td>${r2(p.ap)}</td>
-        <td style="color:#fbbf24;font-weight:bold">${p.mvp_n||'-'}</td>
-        <td style="color:#10b981;font-weight:bold">${p.wg_n||'-'}</td>
+        <td style="color:#e2e8f0">${wc(p.w1)}</td>
+        <td style="color:#94a3b8">${wc(p.w2)}</td>
+        <td style="color:#64748b">${wc(p.w3)}</td>
+        <td style="color:#64748b">${wc(p.w4)}</td>
+        <td style="color:#475569">${wc(p.w5)}</td>
+        <td style="color:#3b82f6">${p.cur}</td>
         <td>${skHtml(p.name)}</td>
         <td>
-          <b style="color:#fbbf24;font-size:.9rem">${r2(p.rating)}</b>
-          <div class="bar-wrap"><div class="bar bar-gold" style="width:${Math.round(100*p.rating/maxR)}%"></div></div>
+          <b style="color:#fbbf24;font-size:.9rem">${p.rating}</b>
+          <div class="bar-wrap"><div class="bar bar-gold" style="width:${Math.round(100*(p.rating-minR)/Math.max(maxR-minR,1))}%"></div></div>
         </td>
       </tr>`).join('')}
     </tbody></table>`;
@@ -1140,16 +1122,21 @@ function gameSummaryText(game) {
   const scorers = [...(game.teamA||[]),...(game.teamB||[])].filter(p=>p.goals>0)
     .sort((a,b)=>b.goals-a.goals).map(p=>`${p.name} ${p.goals}`).join(', ');
   const moves = ELO_MOVES.get(game)||{};
-  const arr = Object.entries(moves).map(([n,d])=>({n,d})).sort((a,b)=>b.d-a.d);
-  const up=arr[0], down=arr[arr.length-1];
+  const eloLine = team => (team||[]).map(p => {
+    const m = moves[p.name];
+    if (!m) return `  ${p.name}`;
+    const sign = m.d>=0 ? '+' : '';
+    return `  ${p.name}: ${m.r} (${sign}${Math.round(m.d)})`;
+  }).join('\n');
   let t = `⚽ כדורגל שישי — ${game.date}\n`;
   t += `תוצאה: ${sA} : ${sB}  (${res})\n`;
   if (scorers)  t += `⚽ הבקיעו: ${scorers}\n`;
   if (game.mvp) t += `🏅 MVP: ${game.mvp}\n`;
   if (game.wg)  t += `🥅 שער ניצחון: ${game.wg}\n`;
-  if (up && up.d>0.5)     t += `📈 מטפס הדירוג: ${up.n} (+${Math.round(up.d)} ELO)\n`;
-  if (down && down.d<-0.5) t += `📉 צנח בדירוג: ${down.n} (${Math.round(down.d)} ELO)\n`;
-  t += `\n📊 הדשבורד המלא: fogelyotam.github.io/Friday-soccer`;
+  t += `\n📊 דירוג ELO אחרי המשחק:\n`;
+  t += `קבוצה א׳:\n${eloLine(game.teamA)}\n`;
+  t += `קבוצה ב׳:\n${eloLine(game.teamB)}\n`;
+  t += `\nהדשבורד המלא: fogelyotam.github.io/Friday-soccer`;
   return t;
 }
 function _selectedGame() {
