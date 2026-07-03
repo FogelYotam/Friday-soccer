@@ -995,6 +995,24 @@ function buildRecords() {
       <h3>😲 ההפתעות הגדולות — דוד מול גוליית</h3>
       <div style="font-size:.72rem;color:#475569;margin:2px 0 8px">משחקים שבהם הקבוצה החלשה (לפי דירוג ELO רגע לפני המשחק) ניצחה את החזקה</div>
       ${upsets || '<div style="color:#475569;padding:8px">אין נתונים</div>'}
+    </div>` +
+    `<div class="card" style="margin-top:12px">
+      <h3>👑 אלופי השנים</h3>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>שנה</th><th>⚽ מלך שערים</th><th>🅰️ מלך בישולים</th><th>🏅 MVP</th></tr></thead>
+        <tbody>${[...ALL_YRS].reverse().map(yr => {
+          const yTop=(k)=>{ const rs=STATS.byYear.filter(e=>e.yr===yr&&KNOWN.has(e.name)&&e[k]>0); return rs.length?[...rs].sort((a,b)=>b[k]-a[k])[0]:null; };
+          const yMvp=()=>{ const rs=(STATS.bonusByYear||[]).filter(b=>b.yr===yr&&b.mvp>0); return rs.length?[...rs].sort((a,b)=>b.mvp-a.mvp)[0]:null; };
+          const cell=(o,k,u)=> o?`${pl(o.name)} <span style="color:#475569;font-size:.68rem">${o[k]} ${u}</span>`:'<span style="color:#475569">—</span>';
+          const sc=yTop('g'), as=yTop('a'), mv=yMvp();
+          return `<tr>
+            <td style="font-weight:bold;color:#fbbf24">${yr}</td>
+            <td style="text-align:right">${cell(sc,'g','ש׳')}</td>
+            <td style="text-align:right">${cell(as,'a','ב׳')}</td>
+            <td style="text-align:right">${mv?`${pl(mv.name)} <span style="color:#475569;font-size:.68rem">${mv.mvp}×</span>`:'<span style="color:#475569">—</span>'}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
     </div>`;
 }
 
