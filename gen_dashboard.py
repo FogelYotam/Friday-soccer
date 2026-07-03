@@ -316,6 +316,9 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
 .stat-box{text-align:center;background:#0f172a;border-radius:8px;padding:8px 4px}
 .stat-box .sv{font-size:1.1rem;font-weight:bold}
 .stat-box .sl{font-size:.63rem;color:#64748b;margin-top:2px}
+/* profile compact stat grid — stays multi-column even on phones */
+.pstats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+@media(max-width:600px){.pstats{grid-template-columns:repeat(3,1fr)}}
 /* visitor widget */
 .vis-btn{position:fixed;bottom:14px;left:14px;background:#1e3a8a;color:#93c5fd;border:1px solid #3b82f6;border-radius:20px;padding:5px 12px;font-size:.75rem;cursor:pointer;z-index:500;transition:background .2s;white-space:nowrap}
 .vis-btn:hover{background:#2d4fa3}
@@ -337,9 +340,9 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
   <button onclick="showTab('lastgame',this)">📋 מחזור אחרון</button>
   <button onclick="showTab('leaderboard',this)">🏆 מצטיינים</button>
   <button onclick="showTab('records',this);buildRecords()">🏅 שיאים</button>
-  <button onclick="showTab('kosher',this)">💪 כושר</button>
-  <button onclick="showTab('h2h',this)">⚔️ ראש בראש</button>
   <button onclick="showTab('me',this);buildMe()">👤 הדף שלי</button>
+  <button onclick="showTab('h2h',this)">⚔️ ראש בראש</button>
+  <button onclick="showTab('kosher',this)">💪 כושר</button>
 </nav>
 
 <!-- OVERVIEW -->
@@ -1288,7 +1291,7 @@ function profileBody(name, chartId) {
       <span style="background:#0f172a;color:#94a3b8;padding:3px 10px;border-radius:12px;font-size:.78rem">${p.gm} משחקים</span>
       ${skBadge}
     </div>
-    <div class="grid4" style="gap:6px;margin-bottom:14px">
+    <div class="pstats" style="margin-bottom:14px">
       ${sBox('ניצחונות', p.w, '#10b981')}
       ${sBox('הפסדים',   p.l, '#ef4444')}
       ${sBox('תיקו',     p.d, '#fbbf24')}
@@ -1339,26 +1342,35 @@ function profileBody(name, chartId) {
 function makeTrendChart(chartId, yrs) {
   const ctx = document.getElementById(chartId);
   if (!ctx) return null;
+  const winPct = yrs.map(y=>y.gm>0?Math.round(100*y.w/y.gm):0);
   return new Chart(ctx, {
-    type:'line',
     data:{
       labels: yrs.map(y=>y.yr),
       datasets:[
-        {label:'%ניצ׳', data:yrs.map(y=>y.gm>0?Math.round(100*y.w/y.gm):0),
-          borderColor:'#fbbf24', backgroundColor:'rgba(251,191,36,.12)',
-          tension:.3, yAxisID:'y', fill:true, pointRadius:4},
-        {label:'משחקים', data:yrs.map(y=>y.gm),
-          borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.08)',
-          tension:.3, yAxisID:'y2', pointRadius:3},
+        // games per year — subtle bars (context, "how many games")
+        {type:'bar', label:'משחקים', data:yrs.map(y=>y.gm),
+          backgroundColor:'rgba(59,130,246,.35)', borderRadius:3,
+          yAxisID:'y2', order:2},
+        // win% — bold line on top (the main story)
+        {type:'line', label:'% ניצחון', data:winPct,
+          borderColor:'#fbbf24', backgroundColor:'rgba(251,191,36,.10)',
+          borderWidth:3, tension:.3, yAxisID:'y', fill:true,
+          pointRadius:4, pointBackgroundColor:'#fbbf24', order:1},
       ]
     },
     options:{
-      plugins:{legend:{labels:{color:'#94a3b8',font:{size:10}}}},
+      plugins:{
+        legend:{labels:{color:'#94a3b8',font:{size:10},usePointStyle:true}},
+        tooltip:{callbacks:{label:c=> c.dataset.label==='% ניצחון'
+          ? `% ניצחון: ${c.raw}%` : `משחקים: ${c.raw}`}}
+      },
       scales:{
-        y:{max:100,min:0,grid:{color:'#334155'},ticks:{color:'#94a3b8',font:{size:9}},
-           title:{display:true,text:"% ניצ'",color:'#94a3b8',font:{size:9}}},
-        y2:{position:'left',grid:{display:false},ticks:{color:'#475569',font:{size:9}},
-           title:{display:true,text:"מ'",color:'#475569',font:{size:9}}},
+        y:{max:100,min:0,position:'right',grid:{color:'#334155'},
+           ticks:{color:'#fbbf24',font:{size:9},callback:v=>v+'%'},
+           title:{display:true,text:'% ניצחון',color:'#fbbf24',font:{size:9}}},
+        y2:{min:0,position:'left',grid:{display:false},
+           ticks:{color:'#60a5fa',font:{size:9}},
+           title:{display:true,text:'משחקים',color:'#60a5fa',font:{size:9}}},
         x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',font:{size:9}}}
       },
       maintainAspectRatio:false
