@@ -229,6 +229,15 @@ def generate():
     stats['bonus']       = [{'name': k, 'mvp': v['mvp'], 'wg': v['wg']} for k, v in merged.items()]
     stats['bonusByYear'] = by_year_excel + by_year_games
 
+    # Deterministic ordering — Python set/dict iteration order varies between runs,
+    # which otherwise produces spurious diffs and merge conflicts with the CI auto-build.
+    stats['players']     = sorted(stats['players'],     key=lambda p: (-p['gm'], p['name']))
+    stats['byYear']      = sorted(stats['byYear'],      key=lambda e: (e['yr'], e['name']))
+    stats['pairs']       = sorted(stats['pairs'],       key=lambda p: (p['p1'], p['p2']))
+    stats['rivals']      = sorted(stats['rivals'],      key=lambda r: (r['p1'], r['p2']))
+    stats['bonus']       = sorted(stats['bonus'],       key=lambda b: b['name'])
+    stats['bonusByYear'] = sorted(stats['bonusByYear'], key=lambda b: (b['name'], b['yr']))
+
     stats_json = json.dumps(stats, ensure_ascii=False)
     games_json = json.dumps(games, ensure_ascii=False)
 
