@@ -969,20 +969,29 @@ function filterTable() {
     }
     return lbSortDir*((a[lbSortKey]??0)-(b[lbSortKey]??0));
   });
+  // heatmap tint on rate columns — green (best) → red (worst) among shown rows
+  const _cols = {winpct:rows.map(r=>r.winpct), ppg:rows.map(r=>r.ppg),
+                 gpg:rows.map(r=>r.gpg), apg:rows.map(r=>r.apg), contrib:rows.map(r=>r.contrib)};
+  const hb = (val, arr) => {
+    if (arr.length < 2) return '';
+    const below = arr.filter(v => v < val).length;
+    const h = Math.round(120 * below / (arr.length - 1));  // 0=red … 120=green
+    return `background:hsla(${h},60%,45%,.28)`;
+  };
   document.getElementById('lbBody').innerHTML = rows.map((p,i) => `
     <tr>
       <td>${i+1}. ${pl(p.name)}</td>
       <td>${p.gm}</td>
       <td style="font-weight:bold;color:#10b981">${p.w}</td>
-      <td>${pct(p.w,p.gm)}%</td>
+      <td style="${hb(p.winpct,_cols.winpct)}">${pct(p.w,p.gm)}%</td>
       <td>${skHtml(p.name)}</td>
       <td style="color:#fbbf24">${p.pts}</td>
-      <td>${r2(p.ppg)}</td>
+      <td style="${hb(p.ppg,_cols.ppg)}">${r2(p.ppg)}</td>
       <td>${p.g}</td>
-      <td>${r2(p.gpg)}</td>
+      <td style="${hb(p.gpg,_cols.gpg)}">${r2(p.gpg)}</td>
       <td>${p.a}</td>
-      <td>${r2(p.apg)}</td>
-      <td>${r2(p.contrib)}</td>
+      <td style="${hb(p.apg,_cols.apg)}">${r2(p.apg)}</td>
+      <td style="${hb(p.contrib,_cols.contrib)}">${r2(p.contrib)}</td>
       <td style="color:#fbbf24;font-weight:bold">${p.mvp_n||'-'}</td>
       <td style="color:#10b981;font-weight:bold">${p.wg_n||'-'}</td>
     </tr>`).join('');
