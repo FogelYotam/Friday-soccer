@@ -398,6 +398,23 @@ function playerGameLog(name) {
   return log;
 }
 
+// Percentile rank of each player across the qualifying pool (FBref-style scouting bars).
+const PCT_POOL = STATS.players.map(p => ({
+  winpct: p.gm ? p.w/p.gm : 0,
+  gpg:    p.gm ? p.g/p.gm : 0,
+  apg:    p.gm ? p.a/p.gm : 0,
+  cpg:    p.gm ? (p.g+p.a)/p.gm : 0,
+  gm:     p.gm,
+  mvp:    (BONUS[p.name]||{}).mvp || 0,
+  bestW:  (STREAKS[p.name]||{}).bestW || 0,
+}));
+function pctRank(key, val) {
+  const n = PCT_POOL.length;
+  if (n <= 1) return 100;
+  const below = PCT_POOL.filter(x => x[key] < val).length;
+  return Math.round(100 * below / (n - 1));
+}
+
 // ── Utils ────────────────────────────────────────────────────────────────────
 function pct(w,t)  { return t>0 ? Math.round(100*w/t) : 0; }
 // M/D/YYYY -> D.M.YY for display
@@ -1034,23 +1051,50 @@ function profileBody(name, chartId) {
       ${chemTile('קורבן אהוב (5 ש׳)','🎯',favVictim,o=>`${o.w}-${o.l} · ${pct(o.w,o.t)}%`,'#10b981')}
     </div>` : '';
 
-  // ── Recent form (last 10, newest first) ──
+  // ── Recent form heatmap (last 20, newest first — Sofascore style) ──
   const _log = playerGameLog(name);
-  const recent = _log.slice(-10).reverse();
+  const recent = _log.slice(-20).reverse();
   const rW=recent.filter(x=>x.res==='W').length, rD=recent.filter(x=>x.res==='D').length, rL=recent.filter(x=>x.res==='L').length;
-  const formPills = recent.map(x => {
-    const c=x.res==='W'?'sk-w':x.res==='L'?'sk-l':'sk-d';
-    const t=x.res==='W'?'נצ':x.res==='L'?'הפ':'ת';
-    return `<span class="sk ${c}" style="padding:3px 7px" title="${fmtD(x.date)} · ${x.my}:${x.opp}${x.g?` · ${x.g}⚽`:''}">${t}</span>`;
-  }).join(' ');
+  const cellCol = {W:'#10b981', D:'#64748b', L:'#ef4444'};
+  const cellLbl = {W:'נ', D:'ת', L:'ה'};
+  const formCells = recent.map(x => {
+    const extra = (x.g?` · ${x.g}⚽`:'') + (x.a?` · ${x.a}🅰️`:'');
+    return `<div title="${fmtD(x.date)} · ${x.my}:${x.opp}${extra}"
+      style="width:24px;height:24px;border-radius:5px;background:${cellCol[x.res]};
+      display:flex;align-items:center;justify-content:center;color:#fff;font-size:.72rem;font-weight:bold;flex:0 0 auto">${cellLbl[x.res]}</div>`;
+  }).join('');
   const formHtml = recent.length ? `
     <div class="card" style="padding:10px;margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">
         <span style="font-size:.78rem;color:#64748b;font-weight:bold">🔥 פורם — ${recent.length} משחקים אחרונים</span>
-        <span style="font-size:.72rem"><b style="color:#10b981">${rW}</b> נצח׳ · <b style="color:#fbbf24">${rD}</b> תיקו · <b style="color:#ef4444">${rL}</b> הפס׳</span>
+        <span style="font-size:.72rem"><b style="color:#10b981">${rW}</b> נצח׳ · <b style="color:#94a3b8">${rD}</b> תיקו · <b style="color:#ef4444">${rL}</b> הפס׳</span>
       </div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;direction:rtl">${formPills}</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;direction:rtl">${formCells}</div>
     </div>` : '';
+
+  // ── Scouting percentiles (FBref style) — where this player ranks in the pool ──
+  const scoutRows = [
+    {l:'אחוז ניצחון',   v:pct(p.w,p.gm)+'%', pr:pctRank('winpct', p.gm?p.w/p.gm:0)},
+    {l:'שערים למשחק',   v:r2(p.g/p.gm),      pr:pctRank('gpg',    p.gm?p.g/p.gm:0)},
+    {l:'בישולים למשחק', v:r2(p.a/p.gm),      pr:pctRank('apg',    p.gm?p.a/p.gm:0)},
+    {l:'תרומה למשחק',   v:r2((p.g+p.a)/p.gm),pr:pctRank('cpg',    p.gm?(p.g+p.a)/p.gm:0)},
+    {l:'ותק (משחקים)',  v:p.gm,              pr:pctRank('gm',     p.gm)},
+    {l:'MVP',           v:b.mvp||0,          pr:pctRank('mvp',    b.mvp||0)},
+  ];
+  const prColor = pr => pr>=80?'#10b981':pr>=50?'#3b82f6':pr>=25?'#f59e0b':'#ef4444';
+  const scoutHtml = `
+    <div class="card" style="padding:10px;margin-bottom:12px">
+      <div style="font-size:.78rem;color:#64748b;font-weight:bold;margin-bottom:8px">📊 דירוג מול הקבוצה <span style="font-weight:normal;color:#475569">(אחוזון מבין ${PCT_POOL.length} השחקנים)</span></div>
+      ${scoutRows.map(r => `
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <div style="width:88px;font-size:.72rem;color:#94a3b8;text-align:right">${r.l}</div>
+          <div style="flex:1;height:14px;background:#0f172a;border-radius:4px;overflow:hidden">
+            <div style="width:${r.pr}%;height:100%;background:${prColor(r.pr)};border-radius:4px"></div>
+          </div>
+          <div style="width:30px;font-size:.68rem;color:#64748b;text-align:left">${r.v}</div>
+          <div style="width:38px;font-size:.74rem;font-weight:bold;color:${prColor(r.pr)};text-align:left">${r.pr}%</div>
+        </div>`).join('')}
+    </div>`;
 
   const skBadge = sk&&sk.type ? (() => {
     const cls=sk.type==='W'?'sk-w':sk.type==='L'?'sk-l':'sk-d';
@@ -1082,6 +1126,7 @@ function profileBody(name, chartId) {
       ${sBox('שיא ללא ניצחון',   (sk&&sk.bestNW) ? sk.bestNW+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestNWFrom, sk.bestNWTo)}</div>` : '-', '#94a3b8')}
     </div>
     ${formHtml}
+    ${scoutHtml}
     ${yrs.length>1 ? `
     <div class="card" style="padding:10px;margin-bottom:12px">
       <div style="font-size:.76rem;color:#64748b;margin-bottom:4px">📈 מגמה לפי שנה</div>
