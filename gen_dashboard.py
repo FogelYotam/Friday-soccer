@@ -1464,7 +1464,7 @@ function profileBody(name, chartId) {
     ${scoutHtml}
     ${yrs.length>1 ? `
     <div class="card" style="padding:10px;margin-bottom:12px">
-      <div style="font-size:.76rem;color:#64748b;margin-bottom:4px">📈 אחוז ניצחון לפי שנה <span style="font-weight:normal;color:#475569">· גודל הנקודה = מספר משחקים</span></div>
+      <div style="font-size:.76rem;color:#64748b;margin-bottom:4px">📈 מגמה לפי שנה <span style="font-weight:normal;color:#475569">· <span style="color:#60a5fa">עמודה</span> = משחקים · <span style="color:#fbbf24">עיגול</span> = % ניצחון</span></div>
       <div class="modal-chart"><canvas id="${chartId}"></canvas></div>
     </div>` : ''}
     ${chemHtml}
@@ -1500,32 +1500,33 @@ function makeTrendChart(chartId, yrs) {
   const ctx = document.getElementById(chartId);
   if (!ctx) return null;
   const winPct = yrs.map(y=>y.gm>0?Math.round(100*y.w/y.gm):0);
-  const maxGm  = Math.max(...yrs.map(y=>y.gm), 1);
-  // single axis (win%); point size encodes games that year (small = few games = less reliable)
-  const radii  = yrs.map(y=>3 + Math.round(6*y.gm/maxGm));
+  // games per year → bars; win% → circles (own 0-100 axis)
   return new Chart(ctx, {
-    type:'line',
     data:{
       labels: yrs.map(y=>y.yr),
-      datasets:[{
-        label:'% ניצחון', data:winPct,
-        borderColor:'#fbbf24', backgroundColor:'rgba(251,191,36,.12)',
-        borderWidth:3, tension:.3, fill:true,
-        pointRadius:radii, pointHoverRadius:radii.map(r=>r+2),
-        pointBackgroundColor:'#fbbf24', pointBorderColor:'#1e293b',
-      }]
+      datasets:[
+        {type:'bar', label:'משחקים', data:yrs.map(y=>y.gm),
+          backgroundColor:'rgba(59,130,246,.45)', borderRadius:3, yAxisID:'y2', order:2},
+        {type:'line', label:'% ניצחון', data:winPct, yAxisID:'y',
+          showLine:false, pointRadius:6, pointHoverRadius:8,
+          pointBackgroundColor:'#fbbf24', pointBorderColor:'#1e293b', pointBorderWidth:2, order:1},
+      ]
     },
     options:{
       plugins:{
         legend:{display:false},
         tooltip:{callbacks:{
           title:items=>`שנת ${items[0].label}`,
-          label:c=>`${c.raw}% ניצחון · ${yrs[c.dataIndex].gm} משחקים`
+          label:c=> c.dataset.type==='bar' ? `${c.raw} משחקים` : `${c.raw}% ניצחון`
         }}
       },
       scales:{
         y:{max:100,min:0,position:'right',grid:{color:'#334155'},
-           ticks:{color:'#94a3b8',font:{size:9},callback:v=>v+'%'}},
+           ticks:{color:'#fbbf24',font:{size:9},callback:v=>v+'%'},
+           title:{display:true,text:'% ניצחון',color:'#fbbf24',font:{size:9}}},
+        y2:{min:0,position:'left',grid:{display:false},
+           ticks:{color:'#60a5fa',font:{size:9}},
+           title:{display:true,text:'משחקים',color:'#60a5fa',font:{size:9}}},
         x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',font:{size:9}}}
       },
       maintainAspectRatio:false
