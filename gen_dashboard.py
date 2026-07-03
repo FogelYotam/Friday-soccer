@@ -715,6 +715,7 @@ const PCT_POOL = STATS.players.map(p => ({
   gm:     p.gm,
   mvp:    (BONUS[p.name]||{}).mvp || 0,
   bestW:  (STREAKS[p.name]||{}).bestW || 0,
+  elo:    (ELO[p.name]||{}).rating || 1500,
 }));
 function pctRank(key, val) {
   const n = PCT_POOL.length;
@@ -1289,7 +1290,43 @@ function calcH2H() {
     ${pct(pair.w,pair.t)}% ניצחון</div>`;
   if (sA&&sB) html+=`<div class="grid2" style="margin-top:10px;gap:8px">
     ${miniCard(sA)}${miniCard(sB)}</div>`;
+  if (sA&&sB) html+=`<div class="card" style="margin-top:10px">
+    <div style="font-size:.78rem;color:#64748b;font-weight:bold;margin-bottom:6px">📊 השוואת פרופיל <span style="font-weight:normal;color:#475569">· אחוזון מול הקבוצה</span></div>
+    <div style="display:flex;gap:14px;margin-bottom:6px;font-size:.74rem">
+      <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:#3b82f6"></span>${pA}</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:#ef4444"></span>${pB}</span>
+    </div>
+    <div style="position:relative;height:270px"><canvas id="h2hRadar"></canvas></div>
+  </div>`;
   document.getElementById('h2hResult').innerHTML=html;
+  if (sA&&sB) makeH2HRadar(sA, sB);
+}
+let _h2hRadar = null;
+function makeH2HRadar(a, b) {
+  const ctx = document.getElementById('h2hRadar'); if(!ctx) return;
+  if (_h2hRadar) { _h2hRadar.destroy(); _h2hRadar=null; }
+  const axes = [
+    {l:'% ניצחון', k:'winpct', v:p=>p.gm?p.w/p.gm:0},
+    {l:'שערים/מ', k:'gpg',    v:p=>p.gm?p.g/p.gm:0},
+    {l:'בישולים/מ',k:'apg',   v:p=>p.gm?p.a/p.gm:0},
+    {l:'תרומה/מ', k:'cpg',    v:p=>p.gm?(p.g+p.a)/p.gm:0},
+    {l:'MVP',     k:'mvp',    v:p=>(BONUS[p.name]||{}).mvp||0},
+    {l:'ELO',     k:'elo',    v:p=>(ELO[p.name]||{}).rating||1500},
+    {l:'ותק',     k:'gm',     v:p=>p.gm},
+  ];
+  const vals = pl => axes.map(ax => pctRank(ax.k, ax.v(pl)));
+  _h2hRadar = new Chart(ctx, {
+    type:'radar',
+    data:{ labels:axes.map(x=>x.l), datasets:[
+      {label:a.name, data:vals(a), borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.18)', borderWidth:2, pointBackgroundColor:'#3b82f6', pointRadius:3},
+      {label:b.name, data:vals(b), borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,.18)', borderWidth:2, pointBackgroundColor:'#ef4444', pointRadius:3},
+    ]},
+    options:{
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw}% אחוזון`}}},
+      scales:{r:{min:0,max:100,ticks:{display:false,stepSize:25},grid:{color:'#334155'},angleLines:{color:'#334155'},pointLabels:{color:'#94a3b8',font:{size:10}}}},
+      maintainAspectRatio:false
+    }
+  });
 }
 function miniCard(p) {
   const pts=(p.w||0)*2+(p.d||0), b=BONUS[p.name]||{mvp:0,wg:0};
