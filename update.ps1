@@ -33,6 +33,14 @@ if (Test-Path $downloads) {
 
 Write-Host ""
 
+# Step 1b: sync the historical Excel into the repo so CI builds match local
+# (CI has no access to OneDrive; keeping soccer.xlsx current prevents build drift + Pages races)
+$excelSrc = "C:\Users\shlom\OneDrive\Documents\כדורגל שישי\כדורגל שישי בילו 2026.xlsx"
+if (Test-Path $excelSrc) {
+    Copy-Item $excelSrc "$soccerDir\soccer.xlsx" -Force
+    Write-Host "סונכרן soccer.xlsx מ-OneDrive." -ForegroundColor Green
+}
+
 # Step 2: build dashboard
 Write-Host "בונה דשבורד..." -ForegroundColor Yellow
 python "$soccerDir\gen_dashboard.py"
