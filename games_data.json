@@ -39663,5 +39663,75 @@
     "scoreA": 8,
     "scoreB": 5,
     "mvp": "זליצקי"
+  },
+  {
+    "date": "7/17/2026",
+    "teamA": [
+      {
+        "name": "עידן",
+        "goals": 0,
+        "assists": 2
+      },
+      {
+        "name": "זיו",
+        "goals": 1,
+        "assists": 1
+      },
+      {
+        "name": "רפי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "יונתן",
+        "goals": 4,
+        "assists": 0
+      },
+      {
+        "name": "רותם",
+        "goals": 3,
+        "assists": 0
+      },
+      {
+        "name": "מוטי",
+        "goals": 0,
+        "assists": 0
+      }
+    ],
+    "teamB": [
+      {
+        "name": "פוגל",
+        "goals": 1,
+        "assists": 1
+      },
+      {
+        "name": "זליצקי",
+        "goals": 3,
+        "assists": 2
+      },
+      {
+        "name": "אייל",
+        "goals": 0,
+        "assists": 1
+      },
+      {
+        "name": "אלון",
+        "goals": 3,
+        "assists": 1
+      },
+      {
+        "name": "ירון",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "קצל",
+        "goals": 0,
+        "assists": 0
+      }
+    ],
+    "scoreA": 8,
+    "scoreB": 7,
+    "mvp": "יונתן"
   }
 ]
