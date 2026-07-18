@@ -1391,14 +1391,17 @@ function buildMVPLeaderboard() {
 // ── Form rating = ELO weighted per month (newest month ×12 … a year ago ×1) ──
 let ksrSortKey='rating', ksrSortDir=-1, _ksrRows=[];
 const KSR_MIN_CAREER_GAMES = 20;
+// A player drops off the board after two years without a game. Nothing is
+// deleted — his rating is kept and he reappears the moment he plays again.
+const KSR_MAX_INACTIVE_DAYS = 730;
 function buildKosher() {
   document.getElementById('kosherFormula').textContent =
-    `דירוג כוח = בסיס (רמת הקריירה, כולל חוזק היריבים) + התקפה (שערים ובישולים מול הממוצע והפיזור של אותה עמדה — שער+בישול למשחק שווה שער פי 3.3 מבישול) + הגנה (כמה ספגת מול מה שהרכב הקבוצה חזה) + כושר 6 חודשים − היעדרות. מוצגים כל השחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים.`;
+    `דירוג כוח = בסיס (רמת הקריירה, כולל חוזק היריבים) + התקפה (שערים ובישולים מול הממוצע והפיזור של אותה עמדה — שער שווה פי 3.3 מבישול) + הגנה (כמה ספגת מול מה שהרכב הקבוצה חזה) + כושר 6 חודשים − היעדרות. מוצגים שחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים שהופיעו בשנתיים האחרונות.`;
 
   _ksrRows = STATS.players
     .filter(p => p.gm > KSR_MIN_CAREER_GAMES)
     .map(p => ({p, f: eloForm(p.name)}))
-    .filter(x => x.f)
+    .filter(x => x.f && x.f.daysSince <= KSR_MAX_INACTIVE_DAYS)
     .map(({p, f}) => {
       const trend = f.form > 15 ? 'up' : f.form < -15 ? 'down' : 'same';
       const att = ATTACK_PTS[p.name] || 0;
