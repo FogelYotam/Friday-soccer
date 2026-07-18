@@ -1062,17 +1062,16 @@ function renderYearHeroes(yr) {
   // per-year streak records
   const ys = yearStreaks(yr);
   const known = new Set(STATS.players.map(p=>p.name));
-  const topStreak = (key, lbl) => {
+  // same one-line layout as the all-time streak cards
+  const topStreak = (key, lbl, color) => {
     const list = Object.entries(ys)
       .filter(([n,s]) => known.has(n) && (s['best'+key]||0) > 0)
       .sort((a,b) => b[1]['best'+key]-a[1]['best'+key]).slice(0,3);
     return list.length ? list.map(([n,s],i)=>`
-      <div style="font-size:.76rem;margin-bottom:4px">
-        <div style="display:flex;justify-content:space-between">
-          <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
-          <b style="color:#fbbf24">${s['best'+key]} ${lbl}</b>
-        </div>
-        <div style="font-size:.64rem;color:#64748b;text-align:left">${streakRange(s['best'+key+'From'], s['best'+key+'To'])}</div>
+      <div style="display:flex;align-items:baseline;gap:5px;font-size:.76rem;margin-bottom:3px">
+        <span style="white-space:nowrap">${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
+        <b style="color:${color||'#fbbf24'};white-space:nowrap">${s['best'+key]} ${lbl}</b>
+        <span style="font-size:.6rem;color:#64748b;white-space:nowrap">${streakRange(s['best'+key+'From'], s['best'+key+'To'])}</span>
       </div>`).join('') : '<div style="color:#475569;font-size:.75rem">אין נתונים</div>';
   };
 
@@ -1086,7 +1085,7 @@ function renderYearHeroes(yr) {
     {icon:'⚡', label:`שניצ׳ ${yr}`, content:wg.length?row(wg,p=>`${p.wg} שניצ׳`):'<div style="color:#475569;font-size:.75rem">'+(yr===latest?'טרם נקבע':'אין נתונים')+'</div>'},
     {icon:'🔥', label:`רצף ניצחונות ${yr}`, content:topStreak('W','ברצף')},
     {icon:'🛡️', label:`רצף ללא הפסד ${yr}`, content:topStreak('U','ללא הפסד')},
-    {icon:'🥶', label:`רצף ללא ניצחון ${yr}`, content:topStreak('NW','ללא ניצחון')},
+    {icon:'🥶', label:`רצף ללא ניצחון ${yr}`, content:topStreak('NW','ללא ניצחון','#94a3b8')},
   ].map(h=>`
     <div class="hero-card">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
