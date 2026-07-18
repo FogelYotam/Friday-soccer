@@ -861,10 +861,10 @@ const ASSIST_W     = 0.3;
 // average by gm/(gm+ATT_SHRINK), so a hot streak over 20 games can't outrank a
 // decade of evidence. Fitted against the owner's head-to-head calls.
 const ATT_SHRINK   = 0;
-// Only the last season counts. Over 15 years players change position and
+// Only the last 18 months count. Over 15 years players change position and
 // decline — a keeper who scored freely as an outfielder a decade ago should not
 // be credited for it today, and a player back in form should show it now.
-const RECENT_YEARS = 1;
+const RECENT_YEARS = 1.5;
 const RECENT_CUTOFF = Date.now() - RECENT_YEARS*365*24*60*60*1000;
 // goals/assists per game over the recent window only
 const RECENT_ATT = (() => {
@@ -1419,7 +1419,7 @@ const KSR_MIN_CAREER_GAMES = 20;
 const KSR_MAX_INACTIVE_DAYS = 730;
 function buildKosher() {
   document.getElementById('kosherFormula').textContent =
-    `דירוג כוח = בסיס (רמת הקריירה, כולל חוזק היריבים) + התקפה (שערים ובישולים מול הממוצע והפיזור של אותה עמדה — שער שווה פי 3.3 מבישול) + הגנה (כמה ספגת מול מה שהרכב הקבוצה חזה) + כושר 6 חודשים − היעדרות. התקפה והגנה נמדדות לפי השנה האחרונה בלבד. מוצגים שחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים שהופיעו בשנתיים האחרונות.`;
+    `דירוג כוח = בסיס (רמת הקריירה, כולל חוזק היריבים) + התקפה (שערים ובישולים מול הממוצע והפיזור של אותה עמדה — שער שווה פי 3.3 מבישול) + הגנה (כמה ספגת מול מה שהרכב הקבוצה חזה) + כושר 6 חודשים − היעדרות. התקפה והגנה נמדדות לפי שנה וחצי האחרונות בלבד. מוצגים שחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים שהופיעו בשנתיים האחרונות.`;
 
   _ksrRows = STATS.players
     .filter(p => p.gm > KSR_MIN_CAREER_GAMES)
