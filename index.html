@@ -218,7 +218,7 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
       </ul>
       <p style="color:#94a3b8;font-size:.76rem;line-height:1.7">ה-<b style="color:#fbbf24">דירוג כוח</b> שבטבלה בנוי משלושה חלקים:<br>
       <b style="color:#3b82f6">בסיס</b> — כמה אתה שווה לפי כל הקריירה שלך. הוא כבר מגלם את <b>חוזק היריבים</b>: ניצחון על קבוצה חזקה הוסיף לך יותר מניצחון על חלשה. העמודה "חוזק יריבים" מראה את הרמה הממוצעת שנגדה שיחקת.<br>
-      <b style="color:#10b981">התקפה</b> — שערים ובישולים <b>ביחס לעמדה שלך</b>: כל אחד נמדד מול הממוצע והפיזור של העמדה שלו, לא מול חלוצים. שוערים ומגנים מבקיעים הרבה פחות, ולכן כל שער שלהם קופץ הרבה יותר — שער+בישול למשחק שווה יותר לשוער, אחריו מגן ואז חלוץ. שער נספר כפול 1.7 מבישול.<br>
+      <b style="color:#10b981">התקפה</b> — שערים ובישולים <b>ביחס לעמדה שלך</b>: כל אחד נמדד מול הממוצע והפיזור של העמדה שלו, לא מול חלוצים. שוערים ומגנים מבקיעים הרבה פחות, ולכן כל שער שלהם קופץ הרבה יותר. <b>שער שווה פי 1.7 מבישול.</b> מי ששיחק מעט משחקים מקבל ניקוד מכווץ — תפוקה גבוהה ב-20 משחקים פחות אמינה מעשור של נתונים.<br>
       <b style="color:#22d3ee">הגנה</b> — כמה הקבוצה שלך ספגה לעומת מה שהרכב הקבוצה חזה. שמרת על שער נקי כשהיו מעט מגנים? בונוס גדול. ספגת הרבה כשהקבוצה הייתה מלאה במגנים? קנס — ולמגנים הקנס כבד יותר.<br>
       <b style="color:#10b981">כושר</b> — כמה עלית או ירדת ב-6 החודשים האחרונים.<br>
       <b style="color:#ef4444">היעדרות</b> — הפחתה על תקופה בלי לשחק: 10 נק׳ לכל חודש. אם <b>היכולת שלך כבר ירדה</b> לפני שנעלמת, ההפחתה גדולה יותר (עד פי 2) — כי זו לא רק חלודה אלא ירידה אמיתית ברמה.<br>
@@ -557,10 +557,14 @@ const IS_DEF = n => roleOf(n)==='הגנה' || roleOf(n)==='שוער';
 // attackers, the same goal moves a keeper much further up his own scale —
 // which is why a keeper's goal ends up worth ~2.5× an attacker's.
 // ATT_SCALE was fitted so the ranking reproduces the owner's head-to-head calls.
-const ATT_POS_MULT = {'שוער':1.2, 'הגנה':0.8, 'התקפה':1.0};
-const ATT_SCALE    = 150;
+const ATT_POS_MULT = {'שוער':1.0, 'הגנה':0.6, 'התקפה':1.0};
+const ATT_SCALE    = 200;
 const GOAL_W       = 1.0;   // a goal counts for more than an assist
 const ASSIST_W     = 0.6;
+// Few games = unreliable rate. Shrink a player's deviation toward his position's
+// average by gm/(gm+ATT_SHRINK), so a hot streak over 20 games can't outrank a
+// decade of evidence. Fitted against the owner's head-to-head calls.
+const ATT_SHRINK   = 150;
 const attRaw = p => (p.g*GOAL_W + p.a*ASSIST_W) / p.gm;
 const ATTACK_PTS = (() => {
   const byRole = {};
@@ -579,7 +583,8 @@ const ATTACK_PTS = (() => {
     if (!p.gm) return;
     const r = roleOf(p.name);
     const z = (attRaw(p) - avg[r]) / sd[r];
-    out[p.name] = Math.round(z * (ATT_POS_MULT[r]||1) * ATT_SCALE);
+    const shrink = p.gm / (p.gm + ATT_SHRINK);
+    out[p.name] = Math.round(z * shrink * (ATT_POS_MULT[r]||1) * ATT_SCALE);
   });
   return out;
 })();
@@ -1092,7 +1097,7 @@ let ksrSortKey='rating', ksrSortDir=-1, _ksrRows=[];
 const KSR_MIN_CAREER_GAMES = 20;
 function buildKosher() {
   document.getElementById('kosherFormula').textContent =
-    `דירוג כוח = בסיס (רמת הקריירה, כולל חוזק היריבים) + התקפה (שערים ובישולים מול הממוצע והפיזור של אותה עמדה — שער+בישול למשחק שווה שער שווה פי 1.7 מבישול) + הגנה (כמה ספגת מול מה שהרכב הקבוצה חזה) + כושר 6 חודשים − היעדרות. מוצגים כל השחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים.`;
+    `דירוג כוח = בסיס (רמת הקריירה, כולל חוזק היריבים) + התקפה (שערים ובישולים מול הממוצע והפיזור של אותה עמדה — שער+בישול למשחק שווה שער פי 1.7 מבישול, ומכווץ למי ששיחק מעט) + הגנה (כמה ספגת מול מה שהרכב הקבוצה חזה) + כושר 6 חודשים − היעדרות. מוצגים כל השחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים.`;
 
   _ksrRows = STATS.players
     .filter(p => p.gm > KSR_MIN_CAREER_GAMES)
