@@ -190,7 +190,10 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
     </div>
   </div>
   <div class="card" style="margin-top:12px">
-    <h3>🏅 מלכי MVP כל הזמנים (2017+)</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;border-bottom:1px solid #334155;padding-bottom:6px;margin-bottom:8px">
+      <h3 id="mvpTitle" style="border:none;padding:0;margin:0">🏅 מלכי MVP כל הזמנים</h3>
+      <select id="mvpYear" onchange="buildMVPLeaderboard()"></select>
+    </div>
     <div class="tbl-wrap" id="mvpLeaderboard"></div>
   </div>
 </div>
@@ -516,7 +519,7 @@ const ROLE_OVERRIDE = {
   "מיקי": "שוער", "אמנון": "שוער", "ירון": "שוער", "ברק": "שוער",
   "רפי": "שוער", "ביטון": "שוער", "בבצ'וק": "שוער",
   // ⚔️ התקפה
-  "מוטי": "התקפה", "לירן": "התקפה", "שי": "התקפה", "זיו": "התקפה",
+  "מוטי": "התקפה", "לירן": "התקפה", "שי": "התקפה", "זיו": "התקפה", "יונתן": "התקפה",
   // 🛡️ הגנה
   "קצ'ל": "הגנה", "און": "הגנה", "רן": "הגנה", "אייל": "הגנה",
   "דורי": "הגנה", "אילן": "הגנה", "פוגל": "הגנה", "אסף בן ארי": "הגנה",
@@ -726,6 +729,21 @@ function skHtml(name) {
   return `<span class="sk ${cls}">${s.count}${lbl}</span>`;
 }
 
+// Top-3 for an all-time streak record. Name, count and dates sit on one line so
+// nothing is pushed to the far edge (which left a big gap in RTL).
+function streakTop3(key, unit, color) {
+  const known = new Set(STATS.players.map(p=>p.name));
+  return Object.entries(STREAKS)
+    .filter(([n,s]) => known.has(n) && s[key] > 0)
+    .sort((a,b) => b[1][key]-a[1][key]).slice(0,3)
+    .map(([n,s],i) => `
+      <div style="display:flex;align-items:baseline;gap:5px;font-size:.76rem;margin-bottom:3px">
+        <span style="white-space:nowrap">${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
+        <b style="color:${color};white-space:nowrap">${s[key]} ${unit}</b>
+        <span style="font-size:.6rem;color:#64748b;white-space:nowrap">${streakRange(s[key+'From'], s[key+'To'])}</span>
+      </div>`).join('');
+}
+
 // ── Overview ─────────────────────────────────────────────────────────────────
 function renderYearHeroes(yr) {
   const latest = ALL_YRS[ALL_YRS.length-1];
@@ -821,42 +839,12 @@ function buildOverview() {
         <b style="color:#fbbf24">${pct(p.w,p.gm)}%</b>
       </div>`).join('')},
     {icon:'📈', label:'ממוצע נקודות / משחק',  content:top3([...active],'ppg',v=>r2(v))},
-    {icon:'🔥', label:'רצף הניצחונות הארוך בהיסטוריה', content:(()=> {
-      const names=new Set(STATS.players.map(p=>p.name));
-      return Object.entries(STREAKS).filter(([n])=>names.has(n))
-        .sort((a,b)=>b[1].bestW-a[1].bestW).slice(0,3).map(([n,s],i)=>`
-        <div style="font-size:.76rem;margin-bottom:4px">
-          <div style="display:flex;justify-content:space-between">
-            <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
-            <b style="color:#fbbf24">${s.bestW} נצח׳ ברצף</b>
-          </div>
-          <div style="font-size:.64rem;color:#64748b;text-align:left">${streakRange(s.bestWFrom, s.bestWTo)}</div>
-        </div>`).join('');
-    })()},
-    {icon:'🛡️', label:'הרצף הארוך ביותר ללא הפסד', content:(()=> {
-      const names=new Set(STATS.players.map(p=>p.name));
-      return Object.entries(STREAKS).filter(([n])=>names.has(n))
-        .sort((a,b)=>b[1].bestU-a[1].bestU).slice(0,3).map(([n,s],i)=>`
-        <div style="font-size:.76rem;margin-bottom:4px">
-          <div style="display:flex;justify-content:space-between">
-            <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
-            <b style="color:#fbbf24">${s.bestU} ללא הפסד</b>
-          </div>
-          <div style="font-size:.64rem;color:#64748b;text-align:left">${streakRange(s.bestUFrom, s.bestUTo)}</div>
-        </div>`).join('');
-    })()},
-    {icon:'🥶', label:'הרצף הארוך ביותר ללא ניצחון', content:(()=> {
-      const names=new Set(STATS.players.map(p=>p.name));
-      return Object.entries(STREAKS).filter(([n])=>names.has(n))
-        .sort((a,b)=>b[1].bestNW-a[1].bestNW).slice(0,3).map(([n,s],i)=>`
-        <div style="font-size:.76rem;margin-bottom:4px">
-          <div style="display:flex;justify-content:space-between">
-            <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${pl(n)}</span>
-            <b style="color:#94a3b8">${s.bestNW} ללא ניצחון</b>
-          </div>
-          <div style="font-size:.64rem;color:#64748b;text-align:left">${streakRange(s.bestNWFrom, s.bestNWTo)}</div>
-        </div>`).join('');
-    })()},
+    {icon:'🔥', label:'רצף הניצחונות הארוך בהיסטוריה',
+      content: streakTop3('bestW','נצח׳ ברצף','#fbbf24')},
+    {icon:'🛡️', label:'הרצף הארוך ביותר ללא הפסד',
+      content: streakTop3('bestU','ללא הפסד','#fbbf24')},
+    {icon:'🥶', label:'הרצף הארוך ביותר ללא ניצחון',
+      content: streakTop3('bestNW','ללא ניצחון','#94a3b8')},
   ].map(h=>`
     <div class="hero-card">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
@@ -882,14 +870,23 @@ function buildOverview() {
 
   // Top rivals
   const rivals = [...STATS.rivals].filter(r=>r.t>=15).sort((a,b)=>b.t-a.t).slice(0,10);
+  // Show who is ahead explicitly — the leader's name is green and first, and the
+  // score is always written leader-first, so the colour can't be misread.
   document.getElementById('topRivalsOverview').innerHTML = rivals.length ? rivals.map(r => {
     const aW=r.fw, bW=r.t-r.fw-r.d;
-    const col = aW>bW?'#10b981':aW<bW?'#ef4444':'#fbbf24';
+    const tied = aW===bW;
+    const lead = aW>=bW ? r.p1 : r.p2, trail = aW>=bW ? r.p2 : r.p1;
+    const lw = Math.max(aW,bW), tw = Math.min(aW,bW);
     return `<div class="pair-row">
-      <span style="flex:1">${pl(r.p1)} <span style="color:#475569;font-size:.7rem">vs</span> ${pl(r.p2)}</span>
-      <span>
+      <span style="flex:1">
+        ${tied
+          ? `${pl(r.p1)} <span style="color:#fbbf24;font-size:.7rem">תיקו מול</span> ${pl(r.p2)}`
+          : `<b style="color:#10b981">${pl(lead)}</b> <span style="color:#475569;font-size:.7rem">מוביל על</span> <span style="color:#94a3b8">${pl(trail)}</span>`}
+      </span>
+      <span style="white-space:nowrap">
         <span class="chip chip-blue">${r.t} מ׳</span>
-        <span class="chip" style="background:#0f172a;color:${col}">${aW}:${bW}</span>
+        <span class="chip" style="background:#0f172a;color:${tied?'#fbbf24':'#10b981'}">${lw}<span style="color:#475569">:</span><span style="color:#ef4444">${tw}</span></span>
+        ${r.d?`<span class="chip" style="background:#0f172a;color:#64748b">${r.d} ת׳</span>`:''}
       </span>
     </div>`;
   }).join('') : '<div style="color:#475569;padding:8px">אין מספיק נתונים</div>';
@@ -1102,8 +1099,20 @@ function sortTable(key) {
 
 // ── MVP leaderboard ───────────────────────────────────────────────────────────
 function buildMVPLeaderboard() {
-  const rows = [...(STATS.bonus||[])].filter(b=>b.mvp>0||b.wg>0).sort((a,b)=>b.mvp-a.mvp||b.wg-a.wg);
-  if (!rows.length) { document.getElementById('mvpLeaderboard').innerHTML='<p style="color:#64748b;padding:10px">אין נתונים</p>'; return; }
+  const sel = document.getElementById('mvpYear');
+  if (!sel.options.length) {                       // populate once
+    sel.innerHTML = ['<option value="all">כל הזמנים</option>',
+      ...[...ALL_YRS].reverse().map(y=>`<option value="${y}">${y}</option>`)].join('');
+  }
+  const yr = sel.value || 'all';
+  document.getElementById('mvpTitle').textContent =
+    yr==='all' ? '🏅 מלכי MVP כל הזמנים' : `🏅 מלכי MVP ${yr}`;
+
+  const src = yr==='all'
+    ? (STATS.bonus||[])
+    : (STATS.bonusByYear||[]).filter(b=>b.yr===yr);
+  const rows = [...src].filter(b=>b.mvp>0||b.wg>0).sort((a,b)=>b.mvp-a.mvp||b.wg-a.wg);
+  if (!rows.length) { document.getElementById('mvpLeaderboard').innerHTML='<p style="color:#64748b;padding:10px">אין נתונים לשנה זו</p>'; return; }
   document.getElementById('mvpLeaderboard').innerHTML = `
     <table><thead><tr>
       <th>#</th><th style="text-align:right">שחקן</th>
