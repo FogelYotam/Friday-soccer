@@ -512,7 +512,7 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
         <li>הקסם: <b>ניצחון על קבוצה חזקה שווה יותר נקודות</b> מניצחון על חלשה — כי המערכת יודעת מי היו היריבים והשותפים שלך.</li>
         <li>לכן זה מדד הוגן יותר מ"כמה ניצחונות" — שחקן טוב שהיה בקבוצה חלשה עדיין יעלה.</li>
       </ul>
-      <p style="color:#94a3b8;font-size:.76rem">ה-<b style="color:#fbbf24">דירוג כוח</b> שבטבלה = ה-ELO שלך <b>מהזמן האחרון</b>: 4 חלונות של חצי שנה, כשהחודשים האחרונים נספרים הכי הרבה. אז זה משקף כמה אתה חזק <b>עכשיו</b>, לא לפני 10 שנים.</p>
+      <p style="color:#94a3b8;font-size:.76rem">ה-<b style="color:#fbbf24">דירוג כוח</b> שבטבלה = ה-ELO שלך <b>מהחודשים האחרונים</b>: כל חודש נספר בנפרד, כשהחודש האחרון שוקל פי 12 מחודש לפני שנה. מי שלא שיחק ב-3 החודשים האחרונים לא מדורג. אז הטבלה משקפת מי חזק <b>עכשיו</b> — לא לפני 10 שנים.</p>
     </div>
   </details>
   <div class="card">
@@ -751,23 +751,33 @@ const ELO = (() => {
   return out;
 })();
 
-// Recency-weighted ELO power rating: average ELO in each 180-day window,
-// weighted 4·3·2·1 from most recent. Rolls forward over time; older than 720d ignored.
-const ELO_FORM_WEIGHTS = [4,3,2,1];
+// Form rating = ELO averaged per MONTH over the last year, weighted 12·11·…·1
+// from newest to oldest, so the last few weeks dominate. Players who haven't
+// played in ACTIVE_DAYS are not rated at all — the board shows current form only.
+const ELO_FORM_MONTHS = 12;
+const ELO_FORM_ACTIVE_DAYS = 90;
+const _DAY = 24*60*60*1000;
 function eloForm(name) {
   const s = ELO_SERIES[name]; if (!s || !s.length) return null;
-  const now = Date.now(), W = 180*24*60*60*1000;
-  let num=0, den=0, gmRecent=0, wins=[];
-  for (let i=0; i<ELO_FORM_WEIGHTS.length; i++) {
-    const hi = now - i*W, lo = now - (i+1)*W;
+  const now = Date.now(), M = 30*_DAY;
+  // must have played recently to be ranked
+  if (!s.some(x => x.t >= now - ELO_FORM_ACTIVE_DAYS*_DAY)) return null;
+  let num=0, den=0, gmRecent=0;
+  for (let i=0; i<ELO_FORM_MONTHS; i++) {
+    const hi = now - i*M, lo = now - (i+1)*M;
     const inWin = s.filter(x => x.t < hi && x.t >= lo);
-    if (!inWin.length) { wins.push(null); continue; }
+    if (!inWin.length) continue;
     const avg = inWin.reduce((a,x)=>a+x.r,0)/inWin.length;
-    num += avg*ELO_FORM_WEIGHTS[i]; den += ELO_FORM_WEIGHTS[i]; gmRecent += inWin.length;
-    wins.push({avg:Math.round(avg), gm:inWin.length});
+    const w = ELO_FORM_MONTHS - i;           // 12 (this month) … 1 (a year ago)
+    num += avg*w; den += w; gmRecent += inWin.length;
   }
   if (!den) return null;
-  return {rating:Math.round(num/den), gm:gmRecent, wins};
+  // display buckets: average ELO over the last 3 / 6 / 12 months
+  const bucket = months => {
+    const inWin = s.filter(x => x.t >= now - months*M);
+    return inWin.length ? {avg:Math.round(inWin.reduce((a,x)=>a+x.r,0)/inWin.length), gm:inWin.length} : null;
+  };
+  return {rating:Math.round(num/den), gm:gmRecent, b3:bucket(3), b6:bucket(6), b12:bucket(12)};
 }
 const _yearStreaksCache = {};
 function yearStreaks(yr) {
@@ -879,7 +889,10 @@ function renderYearHeroes(yr) {
       </div>`).join('') : '<div style="color:#475569;font-size:.75rem">אין נתונים</div>';
   };
 
+  const winners = [...data].sort((a,b)=>b.w-a.w).filter(p=>p.w>0).slice(0,3);
+
   document.getElementById('curYearHeroes').innerHTML = [
+    {icon:'👑', label:`מלך הניצחונות ${yr}`, content:row(winners,p=>`${p.w} נצח׳`)},
     {icon:'⚽', label:`מלך שערים ${yr}`, content:row(scorers,p=>`${p.g} שע׳`)},
     {icon:'🅰️', label:`מלך בישולים ${yr}`, content:row(assists,p=>`${p.a} בישול`)},
     {icon:'🏅', label:`MVP ${yr}`, content:mvp.length?row(mvp,p=>`${p.mvp} MVP`):'<div style="color:#475569;font-size:.75rem">'+(yr===latest?'טרם נקבע':'אין נתונים')+'</div>'},
@@ -926,6 +939,7 @@ function buildOverview() {
   renderYearHeroes(curYr);
 
   document.getElementById('heroes').innerHTML = [
+    {icon:'👑', label:'מלך הניצחונות',        content:top3([...active],'w',v=>v+' נצח\'')},
     {icon:'🏆', label:'מובילי נקודות',       content:top3([...active],'pts',v=>v+' נק\'')},
     {icon:'⚽', label:'מלכי השערים',          content:top3([...active],'g',v=>v+' ש\'')},
     {icon:'🎯', label:'אחוז ניצחון',          content:[...active].sort((a,b)=>(b.w/b.gm)-(a.w/a.gm)).slice(0,3).map((p,i)=>`
@@ -1060,7 +1074,7 @@ function buildRecords() {
   if (highScore) cards.push(card('🎆','המשחק עתיר השערים', `${highScore.tot} שערים`, `${highScore.sA}:${highScore.sB}`, fmtD(highScore.date)));
 
   // biggest ELO upsets — underdog beat a much stronger side
-  const upsets = ELO_UPSETS.slice(0,8).map(u => {
+  const upsets = ELO_UPSETS.slice(0,5).map(u => {
     const g=u.game, sA=g.scoreA??0, sB=g.scoreB??0;
     const winTeam = u.winSide==='A'?g.teamA:g.teamB, loseTeam = u.winSide==='A'?g.teamB:g.teamA;
     const winR = u.winSide==='A'?u.Ra:u.Rb, loseR = u.winSide==='A'?u.Rb:u.Ra;
@@ -1076,6 +1090,27 @@ function buildRecords() {
     </div>`;
   }).join('');
 
+  // biggest routs — 5 games with the largest goal margin
+  const routs = [...GAMES]
+    .map(g => ({g, mar: Math.abs((g.scoreA??0)-(g.scoreB??0))}))
+    .filter(x => x.mar > 0)
+    .sort((a,b) => b.mar-a.mar || parseDate(b.g.date)-parseDate(a.g.date))
+    .slice(0,5)
+    .map(({g,mar}) => {
+      const sA=g.scoreA??0, sB=g.scoreB??0;
+      const winTeam = sA>sB?g.teamA:g.teamB, loseTeam = sA>sB?g.teamB:g.teamA;
+      const names = t => (t||[]).map(p=>p.name).join(', ');
+      return `<div class="pair-row" style="align-items:flex-start">
+        <span style="flex:1">
+          <b style="color:#fbbf24">${Math.max(sA,sB)}:${Math.min(sA,sB)}</b>
+          <span style="color:#64748b;font-size:.7rem"> · ${fmtD(g.date)}</span>
+          <div style="font-size:.7rem;color:#10b981;margin-top:2px">🏆 ${names(winTeam)}</div>
+          <div style="font-size:.7rem;color:#ef4444">😖 ${names(loseTeam)}</div>
+        </span>
+        <span class="chip chip-orange" style="white-space:nowrap">הפרש ${mar}</span>
+      </div>`;
+    }).join('');
+
   document.getElementById('recordsBody').innerHTML =
     `<div class="grid4">${cards.join('')}</div>` +
     `<div class="card" style="margin-top:12px">
@@ -1084,19 +1119,26 @@ function buildRecords() {
       ${upsets || '<div style="color:#475569;padding:8px">אין נתונים</div>'}
     </div>` +
     `<div class="card" style="margin-top:12px">
+      <h3>💥 התבוסות הגדולות ביותר</h3>
+      <div style="font-size:.72rem;color:#475569;margin:2px 0 8px">חמשת המשחקים עם הפרש השערים הגדול ביותר</div>
+      ${routs}
+    </div>` +
+    `<div class="card" style="margin-top:12px">
       <h3>👑 אלופי השנים</h3>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>שנה</th><th>⚽ מלך שערים</th><th>🅰️ מלך בישולים</th><th>🏅 MVP</th></tr></thead>
+        <thead><tr><th>שנה</th><th>👑 מלך ניצחונות</th><th>⚽ מלך שערים</th><th>🅰️ מלך בישולים</th><th>🏅 MVP</th><th>⚡ שער ניצחון</th></tr></thead>
         <tbody>${[...ALL_YRS].reverse().map(yr => {
           const yTop=(k)=>{ const rs=STATS.byYear.filter(e=>e.yr===yr&&KNOWN.has(e.name)&&e[k]>0); return rs.length?[...rs].sort((a,b)=>b[k]-a[k])[0]:null; };
-          const yMvp=()=>{ const rs=(STATS.bonusByYear||[]).filter(b=>b.yr===yr&&b.mvp>0); return rs.length?[...rs].sort((a,b)=>b.mvp-a.mvp)[0]:null; };
+          const yBonus=(k)=>{ const rs=(STATS.bonusByYear||[]).filter(b=>b.yr===yr&&b[k]>0); return rs.length?[...rs].sort((a,b)=>b[k]-a[k])[0]:null; };
           const cell=(o,k,u)=> o?`${pl(o.name)} <span style="color:#475569;font-size:.68rem">${o[k]} ${u}</span>`:'<span style="color:#475569">—</span>';
-          const sc=yTop('g'), as=yTop('a'), mv=yMvp();
+          const wn=yTop('w'), sc=yTop('g'), as=yTop('a'), mv=yBonus('mvp'), wg=yBonus('wg');
           return `<tr>
             <td style="font-weight:bold;color:#fbbf24">${yr}</td>
+            <td style="text-align:right">${cell(wn,'w','נצח׳')}</td>
             <td style="text-align:right">${cell(sc,'g','ש׳')}</td>
             <td style="text-align:right">${cell(as,'a','ב׳')}</td>
-            <td style="text-align:right">${mv?`${pl(mv.name)} <span style="color:#475569;font-size:.68rem">${mv.mvp}×</span>`:'<span style="color:#475569">—</span>'}</td>
+            <td style="text-align:right">${cell(mv,'mvp','×')}</td>
+            <td style="text-align:right">${cell(wg,'wg','×')}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>
@@ -1206,26 +1248,22 @@ function buildMVPLeaderboard() {
     }).join('')}</tbody></table>`;
 }
 
-// ── Form rating = recency-weighted ELO (last 180d ×5 … 900d ×1) ──────────────
+// ── Form rating = ELO weighted per month (newest month ×12 … a year ago ×1) ──
 let ksrSortKey='rating', ksrSortDir=-1, _ksrRows=[];
 function buildKosher() {
   const min = parseInt(document.getElementById('kosherMinGames').value)||5;
   document.getElementById('kosherFormula').textContent =
-    'דירוג כוח = ELO משוקלל לפי טריות. ה-ELO הממוצע ב-4 חלונות של 180 יום, במשקלים יורדים: אחרון ×4 · הבא ×3 · ×2 · ×1. משחקים מלפני 720 יום לא נספרים. מוצגים רק מי ששיחק בטווח.';
+    'דירוג כוח = ה-ELO שלך בחודשים האחרונים. מחושב לפי חודש: החודש האחרון ×12, הקודם ×11, וכן הלאה עד ×1 לפני שנה — כך שהתוצאות האחרונות קובעות. מי שלא שיחק ב-90 הימים האחרונים לא מדורג.';
 
   _ksrRows = STATS.players
     .map(p => ({p, f: eloForm(p.name)}))
     .filter(x => x.f && x.f.gm >= min)
     .map(({p, f}) => {
       const cur = (ELO[p.name]||{}).rating || 1500;
-      const w = f.wins;  // per-window {avg,gm} or null, index 0 = most recent
-      // trend: newest window avg vs the next non-empty older window
-      const recent = w.find(x=>x); let older=null;
-      for (let i=1;i<w.length;i++){ if(w[i]){older=w[i];break;} }
       let trend='same';
-      if (recent && older) { if(recent.avg>older.avg+15) trend='up'; else if(recent.avg<older.avg-15) trend='down'; }
+      if (f.b3 && f.b12) { if(f.b3.avg>f.b12.avg+15) trend='up'; else if(f.b3.avg<f.b12.avg-15) trend='down'; }
       return {name:p.name, rating:f.rating, cur, recentGm:f.gm, trend,
-        w1:w[0], w2:w[1], w3:w[2], w4:w[3]};
+        b3:f.b3, b6:f.b6, b12:f.b12};
     });
   renderKosherTable();
 }
@@ -1234,8 +1272,10 @@ function sortKosher(key) {
   renderKosherTable();
 }
 function renderKosherTable() {
+  // bucket columns hold {avg,gm} objects — sort them by their average
+  const sv = (o,k) => { const v=o[k]; return (v && typeof v==='object') ? (v.avg??0) : (v??0); };
   const rows = [..._ksrRows].sort((a,b) => {
-    const va=a[ksrSortKey]??0, vb=b[ksrSortKey]??0;
+    const va=sv(a,ksrSortKey), vb=sv(b,ksrSortKey);
     if (typeof va==='string') return ksrSortDir*(va<vb?1:va>vb?-1:0);
     return ksrSortDir*(va-vb);
   });
@@ -1248,12 +1288,11 @@ function renderKosherTable() {
     <table><thead><tr>
       <th>#</th>
       <th onclick="sortKosher('name')" style="text-align:right;${ksrSortKey==='name'?'color:#fff':''}">שחקן${ksrSortKey==='name'?(ksrSortDir===-1?' ▼':' ▲'):''}</th>
-      ${thK('recentGm', 'מ׳ (720י)')}
+      ${thK('recentGm', 'מ׳ (שנה)')}
       <th>מגמה</th>
-      ${thK('w1','180 אחר׳ ×4')}
-      ${thK('w2','×3')}
-      ${thK('w3','×2')}
-      ${thK('w4','×1')}
+      ${thK('b3','3 ח׳')}
+      ${thK('b6','6 ח׳')}
+      ${thK('b12','12 ח׳')}
       ${thK('cur','ELO נוכ׳')}
       <th>רצף</th>
       ${thK('rating','דירוג כוח ★')}
@@ -1264,10 +1303,9 @@ function renderKosherTable() {
         <td style="text-align:right;font-weight:bold">${pl(p.name)}</td>
         <td>${p.recentGm}</td>
         <td style="text-align:center">${ti(p.trend)}</td>
-        <td style="color:#e2e8f0">${wc(p.w1)}</td>
-        <td style="color:#94a3b8">${wc(p.w2)}</td>
-        <td style="color:#64748b">${wc(p.w3)}</td>
-        <td style="color:#475569">${wc(p.w4)}</td>
+        <td style="color:#e2e8f0">${wc(p.b3)}</td>
+        <td style="color:#94a3b8">${wc(p.b6)}</td>
+        <td style="color:#475569">${wc(p.b12)}</td>
         <td style="color:#3b82f6">${p.cur}</td>
         <td>${skHtml(p.name)}</td>
         <td>
