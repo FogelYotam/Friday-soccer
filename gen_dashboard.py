@@ -512,20 +512,17 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
         <li>הקסם: <b>ניצחון על קבוצה חזקה שווה יותר נקודות</b> מניצחון על חלשה — כי המערכת יודעת מי היו היריבים והשותפים שלך.</li>
         <li>לכן זה מדד הוגן יותר מ"כמה ניצחונות" — שחקן טוב שהיה בקבוצה חלשה עדיין יעלה.</li>
       </ul>
-      <p style="color:#94a3b8;font-size:.76rem">ה-<b style="color:#fbbf24">דירוג כוח</b> שבטבלה = ה-ELO שלך <b>מהחודשים האחרונים</b>: כל חודש נספר בנפרד, כשהחודש האחרון שוקל פי 12 מחודש לפני שנה. מי שלא שיחק ב-3 החודשים האחרונים לא מדורג. אז הטבלה משקפת מי חזק <b>עכשיו</b> — לא לפני 10 שנים.</p>
+      <p style="color:#94a3b8;font-size:.76rem;line-height:1.7">ה-<b style="color:#fbbf24">דירוג כוח</b> שבטבלה בנוי משלושה חלקים:<br>
+      <b style="color:#3b82f6">בסיס</b> — כמה אתה שווה לפי כל הקריירה שלך (זה הרצפה שלך, לא נעלמת בגלל חודש חלש).<br>
+      <b style="color:#10b981">כושר</b> — כמה עלית או ירדת ב-6 החודשים האחרונים.<br>
+      <b style="color:#ef4444">היעדרות</b> — הפחתה קטנה אם לא הגעת הרבה זמן (5 נק׳ לחודש, עד 60).<br>
+      בטבלה מופיעים שחקנים עם מעל 100 משחקים שהופיעו לפחות פעם אחת מ-2024 והלאה.</p>
     </div>
   </details>
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-      <h3 style="border:none;padding:0;margin:0">💪 דירוג כוח — ELO משוקלל לטריות</h3>
+      <h3 style="border:none;padding:0;margin:0">💪 דירוג כוח — בסיס + כושר</h3>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <span style="font-size:.75rem;color:#64748b">מינ׳ משחקים:</span>
-        <select id="kosherMinGames" onchange="buildKosher()">
-          <option value="1">כולם</option>
-          <option value="5" selected>5+</option>
-          <option value="10">10+</option>
-          <option value="20">20+</option>
-        </select>
         <span style="font-size:.72rem;color:#475569">
           <span class="trend-up">↑</span> שיפור &nbsp;
           <span class="trend-same">→</span> יציב &nbsp;
@@ -754,30 +751,32 @@ const ELO = (() => {
 // Form rating = ELO averaged per MONTH over the last year, weighted 12·11·…·1
 // from newest to oldest, so the last few weeks dominate. Players who haven't
 // played in ACTIVE_DAYS are not rated at all — the board shows current form only.
-const ELO_FORM_MONTHS = 12;
-const ELO_FORM_ACTIVE_DAYS = 90;
+// Power rating = base value (what the player is worth, from career ELO)
+//              + form movement over the last 6 months
+//              − a small penalty for a long absence.
+// base + form together equal the current career ELO; they are split out so the
+// table can show *why* a player sits where he does.
 const _DAY = 24*60*60*1000;
+const ELO_FORM_WINDOW_MONTHS = 6;   // what counts as "recent form"
+const ELO_ABSENCE_PER_MONTH  = 5;   // points deducted per month away (after a 1-month grace)
+const ELO_ABSENCE_MAX        = 60;
 function eloForm(name) {
   const s = ELO_SERIES[name]; if (!s || !s.length) return null;
-  const now = Date.now(), M = 30*_DAY;
-  // must have played recently to be ranked
-  if (!s.some(x => x.t >= now - ELO_FORM_ACTIVE_DAYS*_DAY)) return null;
-  let num=0, den=0, gmRecent=0;
-  for (let i=0; i<ELO_FORM_MONTHS; i++) {
-    const hi = now - i*M, lo = now - (i+1)*M;
-    const inWin = s.filter(x => x.t < hi && x.t >= lo);
-    if (!inWin.length) continue;
-    const avg = inWin.reduce((a,x)=>a+x.r,0)/inWin.length;
-    const w = ELO_FORM_MONTHS - i;           // 12 (this month) … 1 (a year ago)
-    num += avg*w; den += w; gmRecent += inWin.length;
-  }
-  if (!den) return null;
-  // display buckets: average ELO over the last 3 / 6 / 12 months
-  const bucket = months => {
-    const inWin = s.filter(x => x.t >= now - months*M);
-    return inWin.length ? {avg:Math.round(inWin.reduce((a,x)=>a+x.r,0)/inWin.length), gm:inWin.length} : null;
-  };
-  return {rating:Math.round(num/den), gm:gmRecent, b3:bucket(3), b6:bucket(6), b12:bucket(12)};
+  const now = Date.now(), M = 30*_DAY, cutoff = now - ELO_FORM_WINDOW_MONTHS*M;
+  const cur  = (ELO[name]||{}).rating || 1500;
+  const last = s[s.length-1].t;
+  const daysSince = Math.round((now - last)/_DAY);
+
+  // base = the level he had established before the recent window
+  const before = s.filter(x => x.t < cutoff);
+  const base = Math.round(before.length ? before[before.length-1].r : s[0].r);
+  const form = cur - base;                       // gained/lost during the window
+  const recentGm = s.filter(x => x.t >= cutoff).length;
+
+  const absence = Math.min(ELO_ABSENCE_MAX,
+                           Math.max(0, Math.round((daysSince/30 - 1) * ELO_ABSENCE_PER_MONTH)));
+  return {rating: Math.round(cur - absence), base, form: Math.round(form),
+          absence, daysSince, gm: recentGm, cur};
 }
 const _yearStreaksCache = {};
 function yearStreaks(yr) {
@@ -785,6 +784,31 @@ function yearStreaks(yr) {
     _yearStreaksCache[yr] = computeStreaks(GAMES.filter(g => (g.date||'').endsWith('/'+yr)));
   return _yearStreaksCache[yr];
 }
+
+// ── Inferred playing role ────────────────────────────────────────────────────
+// There is no position field in the data, so the role is estimated from attacking
+// involvement: goals + assists per game, relative to the squad median.
+// A keeper barely registers either, so an absolute floor catches that case.
+const ROLE = (() => {
+  const ps = STATS.players.filter(p => p.gm > 0).map(p => ({
+    name: p.name, gm: p.gm, gpg: p.g/p.gm, apg: p.a/p.gm, c: (p.g+p.a)/p.gm
+  }));
+  const sorted = ps.map(p => p.c).sort((a,b) => a-b);
+  const median = sorted.length ? sorted[Math.floor(sorted.length/2)] : 0;
+  const out = {};
+  ps.forEach(p => {
+    let role, icon, why;
+    if (p.gm >= 30 && p.gpg < 0.25 && p.apg < 0.25) {
+      role = 'שוער'; icon = '🧤'; why = 'כמעט ללא מעורבות התקפית';
+    } else if (p.c >= median) {
+      role = 'התקפה'; icon = '⚔️'; why = 'תרומה התקפית מעל חציון הקבוצה';
+    } else {
+      role = 'הגנה'; icon = '🛡️'; why = 'תרומה התקפית מתחת לחציון הקבוצה';
+    }
+    out[p.name] = {role, icon, why, c: p.c};
+  });
+  return out;
+})();
 
 // ── Per-player chronological game log (for recent form) ──────────────────────
 function playerGameLog(name) {
@@ -1250,20 +1274,24 @@ function buildMVPLeaderboard() {
 
 // ── Form rating = ELO weighted per month (newest month ×12 … a year ago ×1) ──
 let ksrSortKey='rating', ksrSortDir=-1, _ksrRows=[];
+const KSR_MIN_CAREER_GAMES = 100;
+const KSR_ACTIVE_YEARS = ['2024','2025','2026'];
 function buildKosher() {
-  const min = parseInt(document.getElementById('kosherMinGames').value)||5;
   document.getElementById('kosherFormula').textContent =
-    'דירוג כוח = ה-ELO שלך בחודשים האחרונים. מחושב לפי חודש: החודש האחרון ×12, הקודם ×11, וכן הלאה עד ×1 לפני שנה — כך שהתוצאות האחרונות קובעות. מי שלא שיחק ב-90 הימים האחרונים לא מדורג.';
+    `דירוג כוח = ניקוד בסיס (רמת השחקן לפי כל הקריירה) + כושר מ-6 החודשים האחרונים − הפחתה קטנה על היעדרות (${ELO_ABSENCE_PER_MONTH} נק׳ לכל חודש היעדרות, עד ${ELO_ABSENCE_MAX}). מוצגים שחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים שהופיעו לפחות פעם אחת ב-${KSR_ACTIVE_YEARS[0]}–${KSR_ACTIVE_YEARS[KSR_ACTIVE_YEARS.length-1]}.`;
+
+  // eligible: long-standing players (career games) who appeared at least once recently
+  const playedRecently = new Set(
+    STATS.byYear.filter(e => KSR_ACTIVE_YEARS.includes(e.yr) && e.gm > 0).map(e => e.name));
 
   _ksrRows = STATS.players
+    .filter(p => p.gm > KSR_MIN_CAREER_GAMES && playedRecently.has(p.name))
     .map(p => ({p, f: eloForm(p.name)}))
-    .filter(x => x.f && x.f.gm >= min)
+    .filter(x => x.f)
     .map(({p, f}) => {
-      const cur = (ELO[p.name]||{}).rating || 1500;
-      let trend='same';
-      if (f.b3 && f.b12) { if(f.b3.avg>f.b12.avg+15) trend='up'; else if(f.b3.avg<f.b12.avg-15) trend='down'; }
-      return {name:p.name, rating:f.rating, cur, recentGm:f.gm, trend,
-        b3:f.b3, b6:f.b6, b12:f.b12};
+      const trend = f.form > 15 ? 'up' : f.form < -15 ? 'down' : 'same';
+      return {name:p.name, rating:f.rating, base:f.base, form:f.form, absence:f.absence,
+              cur:f.cur, daysSince:f.daysSince, recentGm:f.gm, careerGm:p.gm, trend};
     });
   renderKosherTable();
 }
@@ -1272,10 +1300,8 @@ function sortKosher(key) {
   renderKosherTable();
 }
 function renderKosherTable() {
-  // bucket columns hold {avg,gm} objects — sort them by their average
-  const sv = (o,k) => { const v=o[k]; return (v && typeof v==='object') ? (v.avg??0) : (v??0); };
   const rows = [..._ksrRows].sort((a,b) => {
-    const va=sv(a,ksrSortKey), vb=sv(b,ksrSortKey);
+    const va=a[ksrSortKey]??0, vb=b[ksrSortKey]??0;
     if (typeof va==='string') return ksrSortDir*(va<vb?1:va>vb?-1:0);
     return ksrSortDir*(va-vb);
   });
@@ -1283,36 +1309,44 @@ function renderKosherTable() {
   const minR = Math.min(...rows.map(r=>r.rating), 1499);
   const ti   = t => t==='up'?'<span class="trend-up">↑</span>':t==='down'?'<span class="trend-down">↓</span>':'<span class="trend-same">→</span>';
   const thK  = (key,label) => `<th onclick="sortKosher('${key}')" style="${ksrSortKey===key?'color:#fff':''}">${label}${ksrSortKey===key?(ksrSortDir===-1?' ▼':' ▲'):''}</th>`;
-  const wc = o => o ? `${o.avg}<div style="font-size:.58rem;color:#475569">${o.gm}מ׳</div>` : '-';
+  const signed = v => v>0 ? `<span style="color:#10b981">+${v}</span>`
+                    : v<0 ? `<span style="color:#ef4444">${v}</span>`
+                          : '<span style="color:#475569">0</span>';
+  const away = p => p.daysSince<=35 ? '<span style="color:#475569">—</span>'
+                  : `<span style="color:#f59e0b">${Math.round(p.daysSince/30)} ח׳</span>`;
   document.getElementById('kosherTable').innerHTML = `
     <table><thead><tr>
       <th>#</th>
       <th onclick="sortKosher('name')" style="text-align:right;${ksrSortKey==='name'?'color:#fff':''}">שחקן${ksrSortKey==='name'?(ksrSortDir===-1?' ▼':' ▲'):''}</th>
-      ${thK('recentGm', 'מ׳ (שנה)')}
+      <th>עמדה</th>
+      ${thK('careerGm','מ׳ קריירה')}
+      ${thK('base','בסיס')}
+      ${thK('form','כושר 6ח׳')}
       <th>מגמה</th>
-      ${thK('b3','3 ח׳')}
-      ${thK('b6','6 ח׳')}
-      ${thK('b12','12 ח׳')}
-      ${thK('cur','ELO נוכ׳')}
+      ${thK('recentGm','מ׳ 6ח׳')}
+      ${thK('absence','היעדרות')}
       <th>רצף</th>
       ${thK('rating','דירוג כוח ★')}
     </tr></thead>
-    <tbody>${rows.map((p,i)=>`
-      <tr>
+    <tbody>${rows.map((p,i)=>{
+      const r = ROLE[p.name] || {icon:'', role:''};
+      return `<tr>
         <td>${i+1}</td>
         <td style="text-align:right;font-weight:bold">${pl(p.name)}</td>
-        <td>${p.recentGm}</td>
+        <td style="font-size:.72rem;color:#94a3b8;white-space:nowrap">${r.icon} ${r.role}</td>
+        <td style="color:#64748b">${p.careerGm}</td>
+        <td style="color:#3b82f6">${p.base}</td>
+        <td>${signed(p.form)}</td>
         <td style="text-align:center">${ti(p.trend)}</td>
-        <td style="color:#e2e8f0">${wc(p.b3)}</td>
-        <td style="color:#94a3b8">${wc(p.b6)}</td>
-        <td style="color:#475569">${wc(p.b12)}</td>
-        <td style="color:#3b82f6">${p.cur}</td>
+        <td style="color:#64748b">${p.recentGm||'-'}</td>
+        <td>${p.absence ? `<span style="color:#ef4444">-${p.absence}</span><div style="font-size:.58rem;color:#475569">${away(p)}</div>` : '<span style="color:#475569">—</span>'}</td>
         <td>${skHtml(p.name)}</td>
         <td>
           <b style="color:#fbbf24;font-size:.9rem">${p.rating}</b>
           <div class="bar-wrap"><div class="bar bar-gold" style="width:${Math.round(100*(p.rating-minR)/Math.max(maxR-minR,1))}%"></div></div>
         </td>
-      </tr>`).join('')}
+      </tr>`;
+    }).join('')}
     </tbody></table>`;
 }
 
@@ -1694,6 +1728,7 @@ function profileBody(name, chartId) {
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #334155">
       <h2 style="color:#fbbf24;font-size:1.35rem;margin:0">${name}</h2>
       <span style="background:#0f172a;color:#94a3b8;padding:3px 10px;border-radius:12px;font-size:.78rem">${p.gm} משחקים</span>
+      ${(()=>{const r=ROLE[name]; return r?`<span title="${r.why} · ${r2(r.c)} תרומה/משחק" style="background:#1e293b;border:1px solid #334155;color:#fbbf24;padding:3px 10px;border-radius:12px;font-size:.78rem">${r.icon} ${r.role}</span>`:'';})()}
       ${skBadge}
       <button onclick="sharePlayer(${JSON.stringify(name)})" title="שתף כרטיס שחקן"
         style="margin-right:auto;background:#25D366;color:#0f172a;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:.75rem;font-weight:bold">💬 שתף</button>
