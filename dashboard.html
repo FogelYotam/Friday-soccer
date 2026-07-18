@@ -217,10 +217,10 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
         <li>לכן זה מדד הוגן יותר מ"כמה ניצחונות" — שחקן טוב שהיה בקבוצה חלשה עדיין יעלה.</li>
       </ul>
       <p style="color:#94a3b8;font-size:.76rem;line-height:1.7">ה-<b style="color:#fbbf24">דירוג כוח</b> שבטבלה בנוי משלושה חלקים:<br>
-      <b style="color:#3b82f6">בסיס</b> — כמה אתה שווה לפי כל הקריירה שלך (זה הרצפה שלך, לא נעלמת בגלל חודש חלש).<br>
+      <b style="color:#3b82f6">בסיס</b> — כמה אתה שווה לפי כל הקריירה שלך. הוא כבר מגלם את <b>חוזק היריבים</b>: ניצחון על קבוצה חזקה הוסיף לך יותר מניצחון על חלשה. העמודה "חוזק יריבים" מראה את הרמה הממוצעת שנגדה שיחקת.<br>
       <b style="color:#10b981">כושר</b> — כמה עלית או ירדת ב-6 החודשים האחרונים.<br>
-      <b style="color:#ef4444">היעדרות</b> — הפחתה קטנה אם לא הגעת הרבה זמן (5 נק׳ לחודש, עד 60).<br>
-      בטבלה מופיעים שחקנים עם מעל 100 משחקים שהופיעו לפחות פעם אחת מ-2024 והלאה.</p>
+      <b style="color:#ef4444">היעדרות</b> — הפחתה על תקופה בלי לשחק: 10 נק׳ לכל חודש. אם <b>היכולת שלך כבר ירדה</b> לפני שנעלמת, ההפחתה גדולה יותר (עד פי 2) — כי זו לא רק חלודה אלא ירידה אמיתית ברמה.<br>
+      בטבלה מופיעים כל השחקנים עם מעל 20 משחקים.</p>
     </div>
   </details>
   <div class="card">
@@ -437,13 +437,15 @@ const ELO = (() => {
       if (we < 0.5) ELO_UPSETS.push({game:g, surprise:0.5-we, winSide:sA>sB?'A':'B',
         Ra:Math.round(Ra), Rb:Math.round(Rb)});
     }
-    const bump = (n, d) => {
+    // opp = average rating of the side he played AGAINST (recorded so the table
+    // can show that the rating already accounts for opponent strength)
+    const bump = (n, d, opp) => {
       R[n]=get(n)+d; peak[n]=Math.max((n in peak)?peak[n]:START, R[n]);
       gm[n]=(gm[n]||0)+1; if(yr){ (hist[n]=hist[n]||{})[yr]=R[n]; }
-      (ELO_SERIES[n]=ELO_SERIES[n]||[]).push({t, r:R[n]});
+      (ELO_SERIES[n]=ELO_SERIES[n]||[]).push({t, r:R[n], opp});
       if (deltas[n]) deltas[n].r = Math.round(R[n]);
     };
-    tA.forEach(n=>bump(n,dA)); tB.forEach(n=>bump(n,-dA));
+    tA.forEach(n=>bump(n, dA, Rb)); tB.forEach(n=>bump(n, -dA, Ra));
     ELO_MOVES.set(g, deltas);
   });
   ELO_UPSETS.sort((a,b)=>b.surprise-a.surprise);
@@ -452,18 +454,17 @@ const ELO = (() => {
   return out;
 })();
 
-// Form rating = ELO averaged per MONTH over the last year, weighted 12·11·…·1
-// from newest to oldest, so the last few weeks dominate. Players who haven't
-// played in ACTIVE_DAYS are not rated at all — the board shows current form only.
-// Power rating = base value (what the player is worth, from career ELO)
+// Power rating = base value (career ELO, which already accounts for the strength
+//                of opponents and team-mates in every game)
 //              + form movement over the last 6 months
-//              − a small penalty for a long absence.
-// base + form together equal the current career ELO; they are split out so the
-// table can show *why* a player sits where he does.
+//              − an absence penalty, which bites HARDER when the player was
+//                already sliding when he stopped showing up (a drop in ability),
+//                and softer for someone who left while holding his level.
 const _DAY = 24*60*60*1000;
-const ELO_FORM_WINDOW_MONTHS = 6;   // what counts as "recent form"
-const ELO_ABSENCE_PER_MONTH  = 5;   // points deducted per month away (after a 1-month grace)
-const ELO_ABSENCE_MAX        = 60;
+const ELO_FORM_WINDOW_MONTHS = 6;    // what counts as "recent form"
+const ELO_ABSENCE_PER_MONTH  = 10;   // points per month away (after a 1-month grace)
+const ELO_ABSENCE_MAX        = 300;
+const ELO_DECLINE_GAMES      = 10;   // games before the last one used to detect a slide
 function eloForm(name) {
   const s = ELO_SERIES[name]; if (!s || !s.length) return null;
   const now = Date.now(), M = 30*_DAY, cutoff = now - ELO_FORM_WINDOW_MONTHS*M;
@@ -477,10 +478,24 @@ function eloForm(name) {
   const form = cur - base;                       // gained/lost during the window
   const recentGm = s.filter(x => x.t >= cutoff).length;
 
+  // was he declining over his final stretch? amplifies the absence penalty
+  const tail = s.slice(-ELO_DECLINE_GAMES);
+  const decline = tail.length > 1 ? Math.max(0, tail[0].r - tail[tail.length-1].r) : 0;
+  const declineFactor = 1 + Math.min(1, decline/150);   // 1× … 2×
+
+  const months = Math.max(0, daysSince/30 - 1);
   const absence = Math.min(ELO_ABSENCE_MAX,
-                           Math.max(0, Math.round((daysSince/30 - 1) * ELO_ABSENCE_PER_MONTH)));
+                           Math.round(months * ELO_ABSENCE_PER_MONTH * declineFactor));
+
+  // average strength of the sides he faced (recent window, else whole career)
+  const oppFrom = recentGm ? s.filter(x => x.t >= cutoff) : s;
+  const withOpp = oppFrom.filter(x => typeof x.opp === 'number');
+  const avgOpp = withOpp.length
+    ? Math.round(withOpp.reduce((a,x)=>a+x.opp,0)/withOpp.length) : null;
+
   return {rating: Math.round(cur - absence), base, form: Math.round(form),
-          absence, daysSince, gm: recentGm, cur};
+          absence, daysSince, gm: recentGm, cur,
+          decline: Math.round(decline), declineFactor, avgOpp};
 }
 const _yearStreaksCache = {};
 function yearStreaks(yr) {
@@ -978,24 +993,20 @@ function buildMVPLeaderboard() {
 
 // ── Form rating = ELO weighted per month (newest month ×12 … a year ago ×1) ──
 let ksrSortKey='rating', ksrSortDir=-1, _ksrRows=[];
-const KSR_MIN_CAREER_GAMES = 100;
-const KSR_ACTIVE_YEARS = ['2024','2025','2026'];
+const KSR_MIN_CAREER_GAMES = 20;
 function buildKosher() {
   document.getElementById('kosherFormula').textContent =
-    `דירוג כוח = ניקוד בסיס (רמת השחקן לפי כל הקריירה) + כושר מ-6 החודשים האחרונים − הפחתה קטנה על היעדרות (${ELO_ABSENCE_PER_MONTH} נק׳ לכל חודש היעדרות, עד ${ELO_ABSENCE_MAX}). מוצגים שחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים שהופיעו לפחות פעם אחת ב-${KSR_ACTIVE_YEARS[0]}–${KSR_ACTIVE_YEARS[KSR_ACTIVE_YEARS.length-1]}.`;
-
-  // eligible: long-standing players (career games) who appeared at least once recently
-  const playedRecently = new Set(
-    STATS.byYear.filter(e => KSR_ACTIVE_YEARS.includes(e.yr) && e.gm > 0).map(e => e.name));
+    `דירוג כוח = בסיס (רמת הקריירה — כבר מגלמת את חוזק היריבים והשותפים בכל משחק) + כושר מ-6 החודשים האחרונים − היעדרות (${ELO_ABSENCE_PER_MONTH} נק׳ לחודש, ועד פי 2 אם היכולת כבר ירדה לפני ההיעלמות; מקסימום ${ELO_ABSENCE_MAX}). מוצגים כל השחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים.`;
 
   _ksrRows = STATS.players
-    .filter(p => p.gm > KSR_MIN_CAREER_GAMES && playedRecently.has(p.name))
+    .filter(p => p.gm > KSR_MIN_CAREER_GAMES)
     .map(p => ({p, f: eloForm(p.name)}))
     .filter(x => x.f)
     .map(({p, f}) => {
       const trend = f.form > 15 ? 'up' : f.form < -15 ? 'down' : 'same';
       return {name:p.name, rating:f.rating, base:f.base, form:f.form, absence:f.absence,
-              cur:f.cur, daysSince:f.daysSince, recentGm:f.gm, careerGm:p.gm, trend};
+              cur:f.cur, daysSince:f.daysSince, recentGm:f.gm, careerGm:p.gm, trend,
+              avgOpp:f.avgOpp, decline:f.decline, declineFactor:f.declineFactor};
     });
   renderKosherTable();
 }
@@ -1025,6 +1036,7 @@ function renderKosherTable() {
       <th>עמדה</th>
       ${thK('careerGm','מ׳ קריירה')}
       ${thK('base','בסיס')}
+      ${thK('avgOpp','חוזק יריבים')}
       ${thK('form','כושר 6ח׳')}
       <th>מגמה</th>
       ${thK('recentGm','מ׳ 6ח׳')}
@@ -1040,10 +1052,11 @@ function renderKosherTable() {
         <td style="font-size:.72rem;color:#94a3b8;white-space:nowrap">${r.icon} ${r.role}</td>
         <td style="color:#64748b">${p.careerGm}</td>
         <td style="color:#3b82f6">${p.base}</td>
+        <td style="color:#94a3b8">${p.avgOpp ?? '-'}</td>
         <td>${signed(p.form)}</td>
         <td style="text-align:center">${ti(p.trend)}</td>
         <td style="color:#64748b">${p.recentGm||'-'}</td>
-        <td>${p.absence ? `<span style="color:#ef4444">-${p.absence}</span><div style="font-size:.58rem;color:#475569">${away(p)}</div>` : '<span style="color:#475569">—</span>'}</td>
+        <td>${p.absence ? `<span style="color:#ef4444">-${p.absence}</span><div style="font-size:.58rem;color:#475569">${away(p)}${p.declineFactor>1.05?` · ירידה ×${r2(p.declineFactor)}`:''}</div>` : '<span style="color:#475569">—</span>'}</td>
         <td>${skHtml(p.name)}</td>
         <td>
           <b style="color:#fbbf24;font-size:.9rem">${p.rating}</b>
