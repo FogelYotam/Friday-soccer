@@ -806,9 +806,13 @@ function yearStreaks(yr) {
 // EDIT THIS MAP to fix a player's position. Anyone not listed falls back to an
 // estimate from attacking involvement (goals + assists per game vs the median).
 const ROLE_OVERRIDE = {
-  "מיקי": "שוער", "אמנון": "שוער", "ירון": "שוער", "ברק": "שוער", "רפי": "שוער",
-  "מוטי": "התקפה",
-  "קצ'ל": "הגנה",
+  // 🧤 שוערים
+  "מיקי": "שוער", "אמנון": "שוער", "ירון": "שוער", "ברק": "שוער",
+  "רפי": "שוער", "ביטון": "שוער", "בבצ'וק": "שוער",
+  // ⚔️ התקפה
+  "מוטי": "התקפה", "לירן": "התקפה", "שי": "התקפה",
+  // 🛡️ הגנה
+  "קצ'ל": "הגנה", "און": "הגנה", "רן": "הגנה", "אייל": "הגנה",
 };
 const ROLE = (() => {
   const ps = STATS.players.filter(p => p.gm > 0).map(p => ({
