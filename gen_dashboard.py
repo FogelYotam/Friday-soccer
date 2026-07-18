@@ -39,7 +39,7 @@ MERGE_MAP = {
 
 SKIP_NAMES = {"עצמי", "שער עצמי"}
 
-MIN_GAMES_THRESHOLD = 20  # players with fewer games are treated as guests and excluded
+MIN_GAMES_THRESHOLD = 10  # players with fewer games are treated as guests and excluded
 
 def normalize(name):
     if not name: return None
@@ -1428,16 +1428,16 @@ function buildMVPLeaderboard() {
 
 // ── Form rating = ELO weighted per month (newest month ×12 … a year ago ×1) ──
 let ksrSortKey='rating', ksrSortDir=-1, _ksrRows=[];
-const KSR_MIN_CAREER_GAMES = 20;
+const KSR_MIN_CAREER_GAMES = 10;
 // A player drops off the board after two years without a game. Nothing is
 // deleted — his rating is kept and he reappears the moment he plays again.
 const KSR_MAX_INACTIVE_DAYS = 730;
 function buildKosher() {
   document.getElementById('kosherFormula').textContent =
-    `דירוג כוח = בסיס (רמת הקריירה, כולל חוזק היריבים) + התקפה (שערים ובישולים מול הממוצע והפיזור של אותה עמדה — שער שווה פי 3.3 מבישול) + הגנה (כמה ספגת מול מה שהרכב הקבוצה חזה) + כושר 6 חודשים − היעדרות. התקפה והגנה נמדדות לפי שנה וחצי האחרונות, ומכווצות למי ששיחק בה מעט משחקים. מוצגים שחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים שהופיעו בשנתיים האחרונות.`;
+    `דירוג כוח = בסיס (רמת הקריירה, כולל חוזק היריבים) + התקפה (שערים ובישולים מול הממוצע והפיזור של אותה עמדה — שער שווה פי 3.3 מבישול) + הגנה (כמה ספגת מול מה שהרכב הקבוצה חזה) + כושר 6 חודשים − היעדרות. התקפה והגנה נמדדות לפי שנה וחצי האחרונות, ומכווצות למי ששיחק בה מעט משחקים. מוצגים שחקנים עם ${KSR_MIN_CAREER_GAMES} משחקים ומעלה שהופיעו בשנתיים האחרונות.`;
 
   _ksrRows = STATS.players
-    .filter(p => p.gm > KSR_MIN_CAREER_GAMES)
+    .filter(p => p.gm >= KSR_MIN_CAREER_GAMES)
     .map(p => ({p, f: eloForm(p.name)}))
     .filter(x => x.f && x.f.daysSince <= KSR_MAX_INACTIVE_DAYS)
     .map(({p, f}) => {
