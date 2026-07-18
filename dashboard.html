@@ -504,26 +504,36 @@ function yearStreaks(yr) {
   return _yearStreaksCache[yr];
 }
 
-// ── Inferred playing role ────────────────────────────────────────────────────
-// There is no position field in the data, so the role is estimated from attacking
-// involvement: goals + assists per game, relative to the squad median.
-// A keeper barely registers either, so an absolute floor catches that case.
+// ── Playing role ─────────────────────────────────────────────────────────────
+// Positions are curated by hand — statistics cannot tell a keeper from a
+// low-scoring defender, and only the group knows who actually plays where.
+// EDIT THIS MAP to fix a player's position. Anyone not listed falls back to an
+// estimate from attacking involvement (goals + assists per game vs the median).
+const ROLE_OVERRIDE = {
+  "מיקי": "שוער", "אמנון": "שוער", "ירון": "שוער", "ברק": "שוער", "רפי": "שוער",
+  "מוטי": "התקפה",
+  "קצ'ל": "הגנה",
+};
 const ROLE = (() => {
   const ps = STATS.players.filter(p => p.gm > 0).map(p => ({
     name: p.name, gm: p.gm, gpg: p.g/p.gm, apg: p.a/p.gm, c: (p.g+p.a)/p.gm
   }));
   const sorted = ps.map(p => p.c).sort((a,b) => a-b);
   const median = sorted.length ? sorted[Math.floor(sorted.length/2)] : 0;
+  const ICON = {'שוער':'🧤', 'התקפה':'⚔️', 'הגנה':'🛡️'};
   const out = {};
   ps.forEach(p => {
     let role, icon, why;
-    if (p.gm >= 30 && p.gpg < 0.25 && p.apg < 0.25) {
-      role = 'שוער'; icon = '🧤'; why = 'כמעט ללא מעורבות התקפית';
+    if (ROLE_OVERRIDE[p.name]) {
+      role = ROLE_OVERRIDE[p.name]; why = 'עמדה ידועה';
+    } else if (p.gm >= 30 && p.gpg < 0.25 && p.apg < 0.25) {
+      role = 'שוער'; why = 'כמעט ללא מעורבות התקפית';
     } else if (p.c >= median) {
-      role = 'התקפה'; icon = '⚔️'; why = 'תרומה התקפית מעל חציון הקבוצה';
+      role = 'התקפה'; why = 'תרומה התקפית מעל חציון הקבוצה';
     } else {
-      role = 'הגנה'; icon = '🛡️'; why = 'תרומה התקפית מתחת לחציון הקבוצה';
+      role = 'הגנה'; why = 'תרומה התקפית מתחת לחציון הקבוצה';
     }
+    icon = ICON[role] || '';
     out[p.name] = {role, icon, why, c: p.c};
   });
   return out;
