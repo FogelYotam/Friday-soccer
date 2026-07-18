@@ -565,12 +565,34 @@ const ASSIST_W     = 0.3;
 // average by gm/(gm+ATT_SHRINK), so a hot streak over 20 games can't outrank a
 // decade of evidence. Fitted against the owner's head-to-head calls.
 const ATT_SHRINK   = 0;
-const attRaw = p => (p.g*GOAL_W + p.a*ASSIST_W) / p.gm;
+// Only the last season counts. Over 15 years players change position and
+// decline — a keeper who scored freely as an outfielder a decade ago should not
+// be credited for it today, and a player back in form should show it now.
+const RECENT_YEARS = 1;
+const RECENT_CUTOFF = Date.now() - RECENT_YEARS*365*24*60*60*1000;
+// goals/assists per game over the recent window only
+const RECENT_ATT = (() => {
+  const acc = {};
+  GAMES.forEach(g => {
+    if (parseDate(g.date) < RECENT_CUTOFF) return;
+    [...(g.teamA||[]), ...(g.teamB||[])].forEach(p => {
+      if (!p.name) return;
+      const a = acc[p.name] = acc[p.name] || {gm:0, g:0, a:0};
+      a.gm++; a.g += p.goals||0; a.a += p.assists||0;
+    });
+  });
+  return acc;
+})();
+const attRaw = name => {
+  const a = RECENT_ATT[name];
+  return (a && a.gm) ? (a.g*GOAL_W + a.a*ASSIST_W) / a.gm : null;
+};
 const ATTACK_PTS = (() => {
   const byRole = {};
   STATS.players.forEach(p => {
-    if (!p.gm) return;
-    (byRole[roleOf(p.name)] = byRole[roleOf(p.name)] || []).push(attRaw(p));
+    const v = attRaw(p.name);
+    if (v === null) return;
+    (byRole[roleOf(p.name)] = byRole[roleOf(p.name)] || []).push(v);
   });
   const avg = {}, sd = {};
   Object.keys(byRole).forEach(r => {
@@ -580,11 +602,11 @@ const ATTACK_PTS = (() => {
   });
   const out = {};
   STATS.players.forEach(p => {
-    if (!p.gm) return;
+    const v = attRaw(p.name);
+    if (v === null) { out[p.name] = 0; return; }   // no recent games → no bonus either way
     const r = roleOf(p.name);
-    const z = (attRaw(p) - avg[r]) / sd[r];
-    const shrink = p.gm / (p.gm + ATT_SHRINK);
-    out[p.name] = Math.round(z * shrink * (ATT_POS_MULT[r]||1) * ATT_SCALE);
+    const z = (v - avg[r]) / sd[r];
+    out[p.name] = Math.round(z * (ATT_POS_MULT[r]||1) * ATT_SCALE);
   });
   return out;
 })();
@@ -598,6 +620,7 @@ const DEFENSE_PTS = (() => {
   const teamGames = [];
   let totConc=0, totShare=0, n=0;
   GAMES.forEach(g => {
+    if (parseDate(g.date) < RECENT_CUTOFF) return;   // recent form only
     const tA=(g.teamA||[]).filter(p=>p.name), tB=(g.teamB||[]).filter(p=>p.name);
     if (!tA.length || !tB.length) return;
     const sA=g.scoreA??0, sB=g.scoreB??0;
@@ -1100,7 +1123,7 @@ const KSR_MIN_CAREER_GAMES = 20;
 const KSR_MAX_INACTIVE_DAYS = 730;
 function buildKosher() {
   document.getElementById('kosherFormula').textContent =
-    `דירוג כוח = בסיס (רמת הקריירה, כולל חוזק היריבים) + התקפה (שערים ובישולים מול הממוצע והפיזור של אותה עמדה — שער שווה פי 3.3 מבישול) + הגנה (כמה ספגת מול מה שהרכב הקבוצה חזה) + כושר 6 חודשים − היעדרות. מוצגים שחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים שהופיעו בשנתיים האחרונות.`;
+    `דירוג כוח = בסיס (רמת הקריירה, כולל חוזק היריבים) + התקפה (שערים ובישולים מול הממוצע והפיזור של אותה עמדה — שער שווה פי 3.3 מבישול) + הגנה (כמה ספגת מול מה שהרכב הקבוצה חזה) + כושר 6 חודשים − היעדרות. התקפה והגנה נמדדות לפי השנה האחרונה בלבד. מוצגים שחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים שהופיעו בשנתיים האחרונות.`;
 
   _ksrRows = STATS.players
     .filter(p => p.gm > KSR_MIN_CAREER_GAMES)
