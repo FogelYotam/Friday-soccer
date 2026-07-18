@@ -77,6 +77,25 @@ input:focus,select:focus{outline:none;border-color:#fbbf24}
   <div id="loadStatus" class="status st-load">⏳ טוען...</div>
 
   <div class="card">
+    <h2>⚖️ קביעת כוחות</h2>
+    <label>מי הגיע היום? (שם בכל שורה, או מופרדים בפסיק)</label>
+    <textarea id="rosterBox" rows="6" placeholder="עידן&#10;פוגל&#10;מוטי&#10;..."
+      style="background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:8px;padding:11px 12px;font-size:1rem;width:100%;resize:vertical"></textarea>
+    <button class="btn btn-gold" onclick="parseRoster()">🔍 זהה שחקנים</button>
+    <div id="rosterStatus" style="margin-top:10px"></div>
+
+    <div id="splitOpts" style="display:none">
+      <hr class="sep">
+      <label>איך לחלק?</label>
+      <button class="btn btn-gray" onclick="makeTeams('balanced')">⚖️ הכי מאוזן</button>
+      <button class="btn btn-gray" onclick="makeTeams('rematch')">🔁 משחק חוזר</button>
+      <button class="btn btn-gray" onclick="makeTeams('surprise')">🎲 משחק הפתעה</button>
+      <button class="btn btn-gray" onclick="makeTeams('devatt')">🛡️ הגנה מול התקפה</button>
+      <div id="splitResult" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>📋 משחק חדש</h2>
 
     <label>תאריך</label>
@@ -124,6 +143,184 @@ const FILE  = 'games_data.json';
 let gamesData    = [];
 let knownPlayers = new Set();
 let currentSHA   = '';
+
+// ─── TEAM BALANCER ──────────────────────────────────────────
+// Same name normalisation and roles the dashboard uses.
+const MERGE_MAP = {
+  "אסף ד":"אסף","אסף ש":"אסף",'אסף ד"ר':"אסף","אסף דר":"אסף","קצל":"קצ'ל",
+  "בבצוק":"בבצ'וק","באבצוק":"בבצ'וק","יוני?":"יוני","מוטי?":"מוטי",
+  "יוני חבר של רן":"יוני","יוני- אורח":"יוני","אייל-אורח":"אייל",
+  "תומר":"תומר סגל","אסף חדש":"אסף בן ארי","אסף חבר של פוגל":"אסף בן ארי",
+  "זלציקי":"זליצקי","קליטו":"קרליטו",
+};
+const ROLE_OVERRIDE = {
+  "מיקי":"שוער","אמנון":"שוער","ירון":"שוער","ברק":"שוער","רפי":"שוער",
+  "ביטון":"שוער","בבצ'וק":"שוער",
+  "מוטי":"התקפה","לירן":"התקפה","שי":"התקפה","זיו":"התקפה",
+  "קצ'ל":"הגנה","און":"הגנה","רן":"הגנה","אייל":"הגנה",
+  "דורי":"הגנה","אילן":"הגנה","פוגל":"הגנה","אסף בן ארי":"הגנה",
+};
+const norm = n => { n=(n||'').trim(); return MERGE_MAP[n]||n; };
+function parseDate(d){
+  const p=(d||'').split('/'); if(p.length!==3) return 0;
+  return new Date(+p[2], +p[0]-1, +p[1]).getTime();
+}
+let ELO={}, ROLE={}, PAIR_LAST={}, LAST_GAME=null;
+const pairKey=(a,b)=> a<b ? a+'|'+b : b+'|'+a;
+
+function buildRatings(){
+  const R={}, gm={}, gl={}, as={};
+  const sorted=[...gamesData].sort((a,b)=>parseDate(a.date)-parseDate(b.date));
+  const get=n=>(n in R)?R[n]:1500;
+  sorted.forEach(g=>{
+    const tA=(g.teamA||[]).map(p=>norm(p.name)).filter(Boolean);
+    const tB=(g.teamB||[]).map(p=>norm(p.name)).filter(Boolean);
+    if(!tA.length||!tB.length) return;
+    const Ra=tA.reduce((s,n)=>s+get(n),0)/tA.length;
+    const Rb=tB.reduce((s,n)=>s+get(n),0)/tB.length;
+    const Ea=1/(1+Math.pow(10,(Rb-Ra)/400));
+    const sA=g.scoreA??0, sB=g.scoreB??0;
+    const Sa=sA>sB?1:sA<sB?0:0.5, dA=28*(Sa-Ea), t=parseDate(g.date);
+    tA.forEach(n=>R[n]=get(n)+dA); tB.forEach(n=>R[n]=get(n)-dA);
+    [[tA,g.teamA],[tB,g.teamB]].forEach(([names,raw])=>{
+      names.forEach((n,i)=>{ gm[n]=(gm[n]||0)+1; gl[n]=(gl[n]||0)+((raw[i]||{}).goals||0); as[n]=(as[n]||0)+((raw[i]||{}).assists||0); });
+      for(let i=0;i<names.length;i++) for(let j=i+1;j<names.length;j++)
+        PAIR_LAST[pairKey(names[i],names[j])]=t;
+    });
+    LAST_GAME={date:g.date, A:new Set(tA), B:new Set(tB)};
+  });
+  ELO={}; Object.keys(R).forEach(n=>ELO[n]=Math.round(R[n]));
+  // roles: manual map first, else infer from attacking involvement
+  const contrib={}, list=[];
+  Object.keys(gm).forEach(n=>{ if(gm[n]>=5){ contrib[n]=((gl[n]||0)+(as[n]||0))/gm[n]; list.push(contrib[n]); } });
+  list.sort((a,b)=>a-b);
+  const med=list.length?list[Math.floor(list.length/2)]:1;
+  ROLE={};
+  Object.keys(gm).forEach(n=>{
+    if(ROLE_OVERRIDE[n]) { ROLE[n]=ROLE_OVERRIDE[n]; return; }
+    const c=contrib[n];
+    if(c===undefined){ ROLE[n]='התקפה'; return; }
+    if(gm[n]>=30 && (gl[n]/gm[n])<0.25 && (as[n]/gm[n])<0.25) ROLE[n]='שוער';
+    else ROLE[n] = c>=med ? 'התקפה' : 'הגנה';
+  });
+}
+
+let roster=[];   // [{name, elo, role, known}]
+function parseRoster(){
+  const raw=document.getElementById('rosterBox').value||'';
+  const names=raw.split(/[\n,;\t]+/).map(s=>s.replace(/^\s*[-–•*\d.)]+\s*/,'').trim()).filter(Boolean);
+  const seen=new Set(); roster=[];
+  names.forEach(n0=>{
+    const n=norm(n0);
+    if(seen.has(n)) return; seen.add(n);
+    roster.push({name:n, elo:ELO[n]??1500, role:ROLE[n]||'התקפה', known:knownPlayers.has(n)});
+  });
+  const el=document.getElementById('rosterStatus');
+  if(roster.length<4){ el.innerHTML=`<div class="status st-err">צריך לפחות 4 שחקנים (זוהו ${roster.length})</div>`;
+    document.getElementById('splitOpts').style.display='none'; return; }
+  const icon=r=>r==='שוער'?'🧤':r==='הגנה'?'🛡️':'⚔️';
+  const newOnes=roster.filter(p=>!p.known);
+  el.innerHTML=`<div class="status st-ok">זוהו ${roster.length} שחקנים</div>
+    <div style="font-size:.8rem;color:#94a3b8;line-height:1.9;margin-top:6px">
+    ${roster.map(p=>`<span style="display:inline-block;background:#0f172a;border:1px solid #334155;border-radius:12px;padding:2px 9px;margin:2px">
+      ${icon(p.role)} ${p.name} <b style="color:#fbbf24">${p.elo}</b>${p.known?'':' <span style="color:#f59e0b">✦חדש</span>'}</span>`).join('')}</div>
+    ${newOnes.length?`<div style="font-size:.72rem;color:#f59e0b;margin-top:6px">✦ ${newOnes.length} שחקנים חדשים — קיבלו דירוג התחלתי 1500</div>`:''}`;
+  document.getElementById('splitOpts').style.display='block';
+  document.getElementById('splitResult').innerHTML='';
+}
+
+// enumerate every way to split into two near-equal teams
+function eachSplit(cb){
+  const n=roster.length, half=Math.floor(n/2);
+  const idx=[...Array(n).keys()];
+  const combo=(start,pick,acc)=>{
+    if(acc.length===pick){ cb(acc.slice()); return; }
+    for(let i=start;i<n;i++){ acc.push(idx[i]); combo(i+1,pick,acc); acc.pop(); }
+  };
+  combo(0,half,[]);
+}
+const teamsOf = sel => {
+  const A=sel.map(i=>roster[i]);
+  const B=roster.filter((_,i)=>!sel.includes(i));
+  return [A,B];
+};
+const sum   = t => t.reduce((s,p)=>s+p.elo,0);
+const cnt   = (t,r) => t.filter(p=>p.role===r).length;
+const posGap= (A,B) => Math.abs(cnt(A,'שוער')-cnt(B,'שוער'))*120
+                     + Math.abs(cnt(A,'הגנה')-cnt(B,'הגנה'))*40
+                     + Math.abs(cnt(A,'התקפה')-cnt(B,'התקפה'))*40;
+const eloGap= (A,B) => Math.abs(sum(A)/A.length - sum(B)/B.length);
+// average days since each pair of team-mates last played together (higher = fresher)
+function freshness(A,B){
+  const now=Date.now(); let tot=0,n=0;
+  [A,B].forEach(t=>{ for(let i=0;i<t.length;i++) for(let j=i+1;j<t.length;j++){
+    const last=PAIR_LAST[pairKey(t[i].name,t[j].name)];
+    tot += last ? (now-last)/86400000 : 3000;   // never played together = very fresh
+    n++;
+  }});
+  return n?tot/n:0;
+}
+
+function makeTeams(mode){
+  if(roster.length<4) return;
+  let best=null, bestScore=Infinity;
+  if(mode==='devatt'){
+    // defenders + keepers on one side, attackers on the other; even out the sizes
+    let D=roster.filter(p=>p.role!=='התקפה').slice();
+    let A=roster.filter(p=>p.role==='התקפה').slice();
+    const moveOne=(from,to)=>{ from.sort((x,y)=>y.elo-x.elo); to.push(from.pop()); };
+    while(D.length-A.length>1) moveOne(D,A);
+    while(A.length-D.length>1) moveOne(A,D);
+    best=[D,A];
+  } else {
+    eachSplit(sel=>{
+      const [A,B]=teamsOf(sel);
+      let score;
+      if(mode==='balanced')      score = eloGap(A,B) + posGap(A,B);
+      else if(mode==='rematch'){
+        if(!LAST_GAME){ score = eloGap(A,B); }
+        else {
+          // how many players sit on the same side as last time (best orientation)
+          const agree=(X,Y)=> X.filter(p=>LAST_GAME.A.has(p.name)).length + Y.filter(p=>LAST_GAME.B.has(p.name)).length;
+          const same=Math.max(agree(A,B), agree(B,A));
+          score = -same*1000 + eloGap(A,B);      // reproduce first, balance as tie-break
+        }
+      }
+      else if(mode==='surprise') score = -freshness(A,B)*2 + eloGap(A,B) + posGap(A,B);
+      if(score<bestScore){ bestScore=score; best=[A,B]; }
+    });
+  }
+  showSplit(best[0], best[1], mode);
+}
+
+function showSplit(A,B,mode){
+  const label={balanced:'⚖️ הכי מאוזן', rematch:'🔁 משחק חוזר', surprise:'🎲 משחק הפתעה', devatt:'🛡️ הגנה מול התקפה'}[mode];
+  const icon=r=>r==='שוער'?'🧤':r==='הגנה'?'🛡️':'⚔️';
+  const col=t=>t.map(p=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #1e293b">
+      <span>${icon(p.role)} ${p.name}</span><span style="color:#fbbf24">${p.elo}</span></div>`).join('');
+  const avg=t=>Math.round(sum(t)/t.length);
+  const fresh=Math.round(freshness(A,B));
+  window._splitA=A; window._splitB=B;
+  document.getElementById('splitResult').innerHTML=`
+    <div style="font-size:.8rem;color:#64748b;margin-bottom:6px">${label} · פער ממוצע ${Math.abs(avg(A)-avg(B))} נק׳ · טריות ${fresh} ימים</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="background:#0f172a;border-top:3px solid #3b82f6;border-radius:8px;padding:8px">
+        <div style="color:#3b82f6;font-weight:bold;font-size:.85rem;margin-bottom:4px">קבוצה א׳ · ${avg(A)}</div>${col(A)}</div>
+      <div style="background:#0f172a;border-top:3px solid #ef4444;border-radius:8px;padding:8px">
+        <div style="color:#ef4444;font-weight:bold;font-size:.85rem;margin-bottom:4px">קבוצה ב׳ · ${avg(B)}</div>${col(B)}</div>
+    </div>
+    <button class="btn btn-green" onclick="applySplit()">✓ השתמש בהרכב הזה</button>`;
+}
+
+function applySplit(){
+  const A=window._splitA||[], B=window._splitB||[];
+  ['teamA','teamB'].forEach(id=>document.getElementById(id).innerHTML='');
+  A.forEach(p=>addRow('A')); B.forEach(p=>addRow('B'));
+  document.querySelectorAll('#teamA .p-name').forEach((inp,i)=>{ if(A[i]){ inp.value=A[i].name; onName(inp); }});
+  document.querySelectorAll('#teamB .p-name').forEach((inp,i)=>{ if(B[i]){ inp.value=B[i].name; onName(inp); }});
+  updateScore();
+  document.getElementById('gameDate').scrollIntoView({behavior:'smooth', block:'start'});
+}
 
 // ─── TOKEN ──────────────────────────────────────────────────
 function getToken(){ return localStorage.getItem('gh_token')||''; }
@@ -191,6 +388,8 @@ async function loadGames(){
   });
   document.getElementById('playerList').innerHTML =
     Object.entries(freq).sort((a,b)=>b[1]-a[1]).map(e=>`<option value="${e[0]}">`).join('');
+
+  buildRatings();   // ELO + roles + pair history, for the team balancer
 }
 
 // ─── DATE ────────────────────────────────────────────────────
