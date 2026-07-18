@@ -857,10 +857,10 @@ const ATT_POS_MULT = {'שוער':1.0, 'הגנה':0.8, 'התקפה':1.0};
 const ATT_SCALE    = 160;
 const GOAL_W       = 1.0;   // a goal counts for more than an assist
 const ASSIST_W     = 0.3;
-// Few games = unreliable rate. Shrink a player's deviation toward his position's
-// average by gm/(gm+ATT_SHRINK), so a hot streak over 20 games can't outrank a
-// decade of evidence. Fitted against the owner's head-to-head calls.
-const ATT_SHRINK   = 0;
+// Few games IN THE WINDOW = unreliable rate. Shrink toward the position average
+// by gm/(gm+ATT_SHRINK) so someone who turned up three times can't be scored as
+// confidently as a regular. Counted on window games, not career games.
+const ATT_SHRINK   = 10;
 // Only the last 18 months count. Over 15 years players change position and
 // decline — a keeper who scored freely as an outfielder a decade ago should not
 // be credited for it today, and a player back in form should show it now.
@@ -902,7 +902,9 @@ const ATTACK_PTS = (() => {
     if (v === null) { out[p.name] = 0; return; }   // no recent games → no bonus either way
     const r = roleOf(p.name);
     const z = (v - avg[r]) / sd[r];
-    out[p.name] = Math.round(z * (ATT_POS_MULT[r]||1) * ATT_SCALE);
+    const wGm = (RECENT_ATT[p.name]||{}).gm || 0;
+    const shrink = wGm / (wGm + ATT_SHRINK);       // 3 games → 23%, 30 games → 75%
+    out[p.name] = Math.round(z * shrink * (ATT_POS_MULT[r]||1) * ATT_SCALE);
   });
   return out;
 })();
@@ -945,7 +947,11 @@ const DEFENSE_PTS = (() => {
     });
   });
   const out = {};
-  Object.keys(acc).forEach(k => out[k] = Math.round((acc[k].pts/acc[k].gm) * DEF_SCALE));
+  Object.keys(acc).forEach(k => {
+    const a = acc[k];
+    const shrink = a.gm / (a.gm + ATT_SHRINK);   // same small-sample damping as the attack score
+    out[k] = Math.round((a.pts/a.gm) * shrink * DEF_SCALE);
+  });
   return out;
 })();
 
@@ -1419,7 +1425,7 @@ const KSR_MIN_CAREER_GAMES = 20;
 const KSR_MAX_INACTIVE_DAYS = 730;
 function buildKosher() {
   document.getElementById('kosherFormula').textContent =
-    `דירוג כוח = בסיס (רמת הקריירה, כולל חוזק היריבים) + התקפה (שערים ובישולים מול הממוצע והפיזור של אותה עמדה — שער שווה פי 3.3 מבישול) + הגנה (כמה ספגת מול מה שהרכב הקבוצה חזה) + כושר 6 חודשים − היעדרות. התקפה והגנה נמדדות לפי שנה וחצי האחרונות בלבד. מוצגים שחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים שהופיעו בשנתיים האחרונות.`;
+    `דירוג כוח = בסיס (רמת הקריירה, כולל חוזק היריבים) + התקפה (שערים ובישולים מול הממוצע והפיזור של אותה עמדה — שער שווה פי 3.3 מבישול) + הגנה (כמה ספגת מול מה שהרכב הקבוצה חזה) + כושר 6 חודשים − היעדרות. התקפה והגנה נמדדות לפי שנה וחצי האחרונות, ומכווצות למי ששיחק בה מעט משחקים. מוצגים שחקנים עם מעל ${KSR_MIN_CAREER_GAMES} משחקים שהופיעו בשנתיים האחרונות.`;
 
   _ksrRows = STATS.players
     .filter(p => p.gm > KSR_MIN_CAREER_GAMES)
