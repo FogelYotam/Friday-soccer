@@ -1,6 +1,13 @@
 import json, openpyxl
 from collections import defaultdict
 
+import sys as _sys
+# Windows consoles default to cp1252 and crash on Hebrew output; force UTF-8.
+try:
+    _sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
+
 import os as _os
 _DIR       = _os.path.dirname(_os.path.abspath(__file__))
 GAMES_PATH = _os.path.join(_DIR, 'games_data.json')
@@ -202,6 +209,29 @@ def read_games_bonus(games):
             by_year.append({'name': wg, 'yr': yr, 'mvp': 0, 'wg': 1})
     return by_year, {k: dict(v) for k, v in totals.items()}
 
+def validate_games(games):
+    """Warn about data-entry mistakes that silently corrupt stats.
+    A player listed twice in one team is double-counted; a player on both teams
+    gets both a win and a loss and becomes their own rival."""
+    problems = []
+    for g in games:
+        a = [p['name'] for p in g.get('teamA', [])]
+        b = [p['name'] for p in g.get('teamB', [])]
+        for team, names in (('A', a), ('B', b)):
+            dups = {n for n in names if names.count(n) > 1}
+            if dups:
+                problems.append(f"{g.get('date')}: {', '.join(sorted(dups))} מופיע פעמיים בקבוצה {team}")
+        both = set(a) & set(b)
+        if both:
+            problems.append(f"{g.get('date')}: {', '.join(sorted(both))} מופיע בשתי הקבוצות")
+    if problems:
+        print(f'\n⚠️  {len(problems)} בעיות בנתוני המשחקים:')
+        for p in problems:
+            print('   -', p)
+        print()
+    return problems
+
+
 def generate():
     with open(GAMES_PATH, encoding='utf-8-sig') as f:
         games = json.load(f)
@@ -212,6 +242,7 @@ def generate():
         for p in g['teamA']: p['name'] = normalize(p['name'])
         for p in g['teamB']: p['name'] = normalize(p['name'])
 
+    validate_games(games)
     stats = compute_stats(games)
 
     keep = {p['name'] for p in stats['players'] if p['gm'] >= MIN_GAMES_THRESHOLD}
@@ -230,7 +261,17 @@ def generate():
         merged[name]['mvp'] += v['mvp']; merged[name]['wg'] += v['wg']
 
     stats['bonus']       = [{'name': k, 'mvp': v['mvp'], 'wg': v['wg']} for k, v in merged.items()]
-    stats['bonusByYear'] = by_year_excel + by_year_games
+
+    # Aggregate per (name, year): the Excel and per-game sources both emit rows,
+    # and read_games_bonus emits one row per game — without merging, a player shows
+    # up multiple times in the yearly MVP/WG lists with partial counts.
+    _by_year = defaultdict(lambda: {'mvp': 0, 'wg': 0})
+    for e in by_year_excel + by_year_games:
+        k = (e['name'], e['yr'])
+        _by_year[k]['mvp'] += e.get('mvp', 0)
+        _by_year[k]['wg']  += e.get('wg', 0)
+    stats['bonusByYear'] = [{'name': n, 'yr': y, 'mvp': v['mvp'], 'wg': v['wg']}
+                            for (n, y), v in _by_year.items()]
 
     # Deterministic ordering — Python set/dict iteration order varies between runs,
     # which otherwise produces spurious diffs and merge conflicts with the CI auto-build.
