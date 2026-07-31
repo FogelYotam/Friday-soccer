@@ -1363,24 +1363,18 @@ function showSelectedGame() {
 function gameSummaryText(game) {
   const sA=game.scoreA??0, sB=game.scoreB??0;
   const res = sA>sB?'ניצחון קבוצה א׳' : sB>sA?'ניצחון קבוצה ב׳' : 'תיקו';
-  const scorers = [...(game.teamA||[]),...(game.teamB||[])].filter(p=>p.goals>0)
-    .sort((a,b)=>b.goals-a.goals).map(p=>`${p.name} ${p.goals}`).join(', ');
-  const moves = ELO_MOVES.get(game)||{};
-  const eloLine = team => (team||[]).map(p => {
-    const m = moves[p.name];
-    if (!m) return `  ${p.name}`;
-    const sign = m.d>=0 ? '+' : '';
-    return `  ${p.name}: ${m.r} (${sign}${Math.round(m.d)})`;
+  // roster lines with goals/assists next to each player, like the "last game" card
+  const teamLines = team => (team||[]).map(p => {
+    const bits=[]; if(p.goals) bits.push(`${p.goals}⚽`); if(p.assists) bits.push(`${p.assists}🅰️`);
+    return `  ${p.name}${bits.length?' — '+bits.join(' '):''}`;
   }).join('\n');
   let t = `⚽ כדורגל שישי — ${game.date}\n`;
   t += `תוצאה: ${sA} : ${sB}  (${res})\n`;
-  if (scorers)  t += `⚽ הבקיעו: ${scorers}\n`;
   if (game.mvp) t += `🏅 MVP: ${game.mvp}\n`;
   if (game.wg)  t += `🥅 שער ניצחון: ${game.wg}\n`;
-  t += `\n📊 דירוג ELO אחרי המשחק:\n`;
-  t += `קבוצה א׳:\n${eloLine(game.teamA)}\n`;
-  t += `קבוצה ב׳:\n${eloLine(game.teamB)}\n`;
-  t += `\nהדשבורד המלא: fogelyotam.github.io/Friday-soccer`;
+  t += `\nקבוצה א׳ — ${sA}\n${teamLines(game.teamA)}\n`;
+  t += `\nקבוצה ב׳ — ${sB}\n${teamLines(game.teamB)}\n`;
+  t += `\n📊 הדשבורד המלא: fogelyotam.github.io/Friday-soccer`;
   return t;
 }
 function _selectedGame() {
