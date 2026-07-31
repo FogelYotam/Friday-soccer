@@ -99,7 +99,11 @@ input:focus,select:focus{outline:none;border-color:#fbbf24}
     <h2>📋 משחק חדש</h2>
 
     <label>תאריך</label>
-    <input type="date" id="gameDate">
+    <input type="date" id="gameDate" onchange="onDateChange()">
+    <div id="editBanner" style="display:none;background:#78350f;color:#fcd34d;border-radius:8px;padding:9px 12px;font-size:.82rem;margin-top:8px;line-height:1.5">
+      ✏️ <b>עריכת משחק קיים</b> — הטופס נטען מהמחזור הזה. תקן מה שצריך ולחץ עדכן.
+      <button onclick="clearEdit()" style="background:none;border:none;color:#fbbf24;text-decoration:underline;cursor:pointer;font-size:.8rem;padding:0;margin-right:6px">משחק חדש במקום</button>
+    </div>
 
     <hr class="sep">
     <h3 style="color:#3b82f6">קבוצה א׳</h3>
@@ -357,6 +361,7 @@ async function initApp(){
     setLS('st-ok', `✓ ${gamesData.length} משחקים נטענו`);
     setDefaultDate();
     initTeams();
+    onDateChange();   // if the default date already has a game, load it for editing
   } catch(e){
     setLS('st-err','❌ שגיאה בטעינה: ' + e.message);
   }
@@ -400,6 +405,52 @@ function setDefaultDate(){
   document.getElementById('gameDate').value = d.toISOString().split('T')[0];
 }
 function toGameDate(iso){ const[y,m,d]=iso.split('-'); return `${+m}/${+d}/${y}`; }
+
+// ─── EDIT EXISTING GAME ──────────────────────────────────────
+let editIndex = -1;   // index in gamesData being edited, or -1 for a new game
+
+function onDateChange(){
+  const dateVal=document.getElementById('gameDate').value;
+  if(!dateVal){ clearEdit(); return; }
+  const gameDate=toGameDate(dateVal);
+  const idx=gamesData.findIndex(g=>g.date===gameDate);
+  if(idx>=0) loadGameIntoForm(idx);
+  else clearEdit();
+}
+
+function loadGameIntoForm(idx){
+  const g=gamesData[idx];
+  editIndex=idx;
+  ['teamA','teamB'].forEach(id=>document.getElementById(id).innerHTML='');
+  const fill=(t,team)=>{
+    (team||[]).forEach(p=>{
+      addRow(t);
+      const row=document.querySelector(`#team${t} .player-row:last-child`);
+      row.querySelector('.p-name').value=p.name||'';
+      row.querySelector('.p-goals').value=p.goals||0;
+      row.querySelector('.p-assists').value=p.assists||0;
+      onName(row.querySelector('.p-name'));
+    });
+    if(!(team||[]).length){ addRow(t); addRow(t); }
+  };
+  fill('A',g.teamA); fill('B',g.teamB);
+  updateScore();
+  document.getElementById('mvpSelect').value=g.mvp||'';
+  document.getElementById('wgSelect').value=g.wg||'';
+  document.getElementById('editBanner').style.display='block';
+  document.getElementById('saveBtn').textContent='✏️ עדכן משחק';
+  document.getElementById('saveStatus').innerHTML='';
+}
+
+function clearEdit(){
+  if(editIndex<0) return;
+  editIndex=-1;
+  document.getElementById('editBanner').style.display='none';
+  document.getElementById('saveBtn').textContent='💾 שמור ופרסם';
+  initTeams(); updateScore();
+  document.getElementById('mvpSelect').value='';
+  document.getElementById('wgSelect').value='';
+}
 
 // ─── TEAMS ───────────────────────────────────────────────────
 function initTeams(){
@@ -479,38 +530,55 @@ async function saveGame(){
 
   const sA=tA.reduce((s,p)=>s+p.goals,0), sB=tB.reduce((s,p)=>s+p.goals,0);
   const gameDate=toGameDate(dateVal);
-  if(gamesData.find(g=>g.date===gameDate))
-    if(!confirm(`כבר קיים משחק ב-${gameDate}. להוסיף בכל זאת?`)) return;
 
   const game={date:gameDate, teamA:tA, teamB:tB, scoreA:sA, scoreB:sB};
   const mvp=document.getElementById('mvpSelect').value||null;
   const wg =document.getElementById('wgSelect').value||null;
   if(mvp) game.mvp=mvp;
   if(wg)  game.wg=wg;
-  gamesData.push(game);
+
+  // decide: update existing (edit mode or same date) vs add new
+  const existing = gamesData.findIndex(g=>g.date===gameDate);
+  let mode, undo;
+  if(editIndex>=0 || existing>=0){
+    const idx = editIndex>=0 ? editIndex : existing;
+    if(editIndex<0 && !confirm(`כבר קיים משחק ב-${gameDate}. לעדכן אותו?`)) return;
+    undo = gamesData[idx];
+    gamesData[idx] = game;
+    mode='update';
+  } else {
+    gamesData.push(game);
+    mode='add';
+  }
 
   const btn=document.getElementById('saveBtn');
+  const origLabel=btn.textContent;
   btn.disabled=true; btn.textContent='⏳ שומר...';
   const statusEl=document.getElementById('saveStatus');
   statusEl.innerHTML='';
 
   try {
-    await commitGitHub(gameDate);
+    await commitGitHub(gameDate, mode);
     const res=sA>sB?'ניצחון א׳':sB>sA?'ניצחון ב׳':'תיקו';
     statusEl.innerHTML=`<div class="status st-ok">
-      ✅ נשמר! ${gameDate} — ${sA}:${sB} (${res})<br>
+      ✅ ${mode==='update'?'עודכן':'נשמר'}! ${gameDate} — ${sA}:${sB} (${res})<br>
       🤖 האתר מתעדכן אוטומטית — תוך כ-2 דקות הדשבורד יהיה מעודכן.
     </div>`;
     setLS('st-ok',`✓ ${gamesData.length} משחקים`);
+    editIndex = gamesData.findIndex(g=>g.date===gameDate);  // stay in edit mode on this game
+    document.getElementById('editBanner').style.display='block';
+    btn.textContent='✏️ עדכן משחק';
   } catch(e){
-    gamesData.pop();
+    if(mode==='update') gamesData[gamesData.findIndex(g=>g.date===gameDate)]=undo;
+    else gamesData.pop();
     statusEl.innerHTML=`<div class="status st-err">❌ שגיאה: ${e.message}</div>`;
+    btn.textContent=origLabel;
   } finally {
-    btn.disabled=false; btn.textContent='💾 שמור ופרסם';
+    btn.disabled=false;
   }
 }
 
-async function commitGitHub(dateLabel){
+async function commitGitHub(dateLabel, mode){
   // Fetch fresh SHA every time — avoids stale SHA between saves
   const getRes=await fetch(
     `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`,
@@ -524,7 +592,7 @@ async function commitGitHub(dateLabel){
     `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`,
     { method:'PUT',
       headers:{ Authorization:`token ${getToken()}`, 'Content-Type':'application/json' },
-      body:JSON.stringify({ message:`Add game ${dateLabel}`, content, sha:fileInfo.sha })
+      body:JSON.stringify({ message:`${mode==='update'?'Edit':'Add'} game ${dateLabel}`, content, sha:fileInfo.sha })
     }
   );
   if(!res.ok){ const e=await res.json(); throw new Error(e.message||res.status); }
@@ -534,10 +602,14 @@ async function commitGitHub(dateLabel){
 
 // ─── RESET ───────────────────────────────────────────────────
 function resetForm(){
+  editIndex=-1;
+  document.getElementById('editBanner').style.display='none';
+  document.getElementById('saveBtn').textContent='💾 שמור ופרסם';
   initTeams(); setDefaultDate(); updateScore();
   document.getElementById('mvpSelect').value='';
   document.getElementById('wgSelect').value='';
   document.getElementById('saveStatus').innerHTML='';
+  onDateChange();   // default date might itself be an existing game
 }
 
 // ─── BOOT ────────────────────────────────────────────────────
