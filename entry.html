@@ -265,34 +265,77 @@ function freshness(A,B){
   return n?tot/n:0;
 }
 
+// ─── HARD CONSTRAINTS on every suggestion ────────────────────
+// 1. keepers split across teams (keeper vs keeper)
+// 2. מוטי vs קצ'ל on opposite teams when both play
+// 3. if only one of them plays, he faces ירון or רפי
+const has  = n => roster.some(p=>p.name===n);
+const side = (A,B,n) => A.some(p=>p.name===n) ? 'A' : (B.some(p=>p.name===n) ? 'B' : null);
+function valid(A,B){
+  const kA=cnt(A,'שוער'), kB=cnt(B,'שוער');
+  if(kA+kB>=2 && (kA<1 || kB<1)) return false;   // both teams need a keeper
+  if(Math.abs(kA-kB)>1) return false;            // split keepers evenly
+  const moti=has('מוטי'), katz=has("קצ'ל");
+  if(moti && katz){
+    if(side(A,B,'מוטי')===side(A,B,"קצ'ל")) return false;
+  } else if(moti || katz){
+    const anchor=moti?'מוטי':"קצ'ל", as=side(A,B,anchor);
+    const opps=['ירון','רפי'].filter(has);
+    if(opps.length && !opps.some(o=>side(A,B,o)&&side(A,B,o)!==as)) return false;
+  }
+  return true;
+}
+// canonical signature so the two orientations of a split count as one
+const canon = (A,B) => {
+  const a=A.map(p=>p.name).sort().join(','), b=B.map(p=>p.name).sort().join(',');
+  return a<b ? a+'|'+b : b+'|'+a;
+};
+function scoreFor(mode,A,B){
+  if(mode==='balanced') return eloGap(A,B) + posGap(A,B);
+  if(mode==='rematch'){
+    if(!LAST_GAME) return eloGap(A,B);
+    const agree=(X,Y)=> X.filter(p=>LAST_GAME.A.has(p.name)).length + Y.filter(p=>LAST_GAME.B.has(p.name)).length;
+    return -Math.max(agree(A,B),agree(B,A))*1000 + eloGap(A,B);
+  }
+  if(mode==='surprise') return -freshness(A,B)*2 + eloGap(A,B) + posGap(A,B);
+  if(mode==='devatt'){   // maximise role separation, keep it balanced
+    const rv=p=>p.role==='התקפה'?1:-1;
+    const sep=Math.abs(A.reduce((s,p)=>s+rv(p),0)/A.length - B.reduce((s,p)=>s+rv(p),0)/B.length);
+    return -sep*1000 + eloGap(A,B);
+  }
+  return eloGap(A,B);
+}
+
+let _splitCache={sig:null, splits:null};
+function computeAllSplits(){
+  const sig=roster.map(p=>p.name).sort().join(',');
+  if(_splitCache.sig===sig) return _splitCache.splits;
+  // all distinct valid partitions
+  const seen=new Set(), parts=[];
+  eachSplit(sel=>{
+    const [A,B]=teamsOf(sel);
+    if(!valid(A,B)) return;
+    const c=canon(A,B); if(seen.has(c)) return; seen.add(c);
+    parts.push({A,B,c});
+  });
+  const modes=['balanced','rematch','surprise','devatt'];
+  const out={}; const used=new Set();
+  modes.forEach(m=>{
+    const ranked=[...parts].sort((x,y)=>scoreFor(m,x.A,x.B)-scoreFor(m,y.A,y.B));
+    let pick=ranked.find(p=>!used.has(p.c)) || ranked[0];   // distinct if possible
+    if(pick){ used.add(pick.c); out[m]=[pick.A,pick.B]; }
+  });
+  _splitCache={sig, splits:out};
+  return out;
+}
+
 function makeTeams(mode){
   if(roster.length<4) return;
-  let best=null, bestScore=Infinity;
-  if(mode==='devatt'){
-    // defenders + keepers on one side, attackers on the other; even out the sizes
-    let D=roster.filter(p=>p.role!=='התקפה').slice();
-    let A=roster.filter(p=>p.role==='התקפה').slice();
-    const moveOne=(from,to)=>{ from.sort((x,y)=>y.elo-x.elo); to.push(from.pop()); };
-    while(D.length-A.length>1) moveOne(D,A);
-    while(A.length-D.length>1) moveOne(A,D);
-    best=[D,A];
-  } else {
-    eachSplit(sel=>{
-      const [A,B]=teamsOf(sel);
-      let score;
-      if(mode==='balanced')      score = eloGap(A,B) + posGap(A,B);
-      else if(mode==='rematch'){
-        if(!LAST_GAME){ score = eloGap(A,B); }
-        else {
-          // how many players sit on the same side as last time (best orientation)
-          const agree=(X,Y)=> X.filter(p=>LAST_GAME.A.has(p.name)).length + Y.filter(p=>LAST_GAME.B.has(p.name)).length;
-          const same=Math.max(agree(A,B), agree(B,A));
-          score = -same*1000 + eloGap(A,B);      // reproduce first, balance as tie-break
-        }
-      }
-      else if(mode==='surprise') score = -freshness(A,B)*2 + eloGap(A,B) + posGap(A,B);
-      if(score<bestScore){ bestScore=score; best=[A,B]; }
-    });
+  const all=computeAllSplits();
+  const best=all[mode];
+  if(!best){
+    document.getElementById('splitResult').innerHTML='<div class="status st-err">אי אפשר לחלק לפי האילוצים (בדוק שוערים / מוטי-קצ׳ל)</div>';
+    return;
   }
   showSplit(best[0], best[1], mode);
 }
