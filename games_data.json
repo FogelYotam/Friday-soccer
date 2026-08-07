@@ -39787,5 +39787,75 @@
     ],
     "scoreA": 8,
     "scoreB": 3
+  },
+  {
+    "date": "8/7/2026",
+    "teamA": [
+      {
+        "name": "מוטי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "רותם",
+        "goals": 2,
+        "assists": 2
+      },
+      {
+        "name": "ירון",
+        "goals": 1,
+        "assists": 1
+      },
+      {
+        "name": "מוש",
+        "goals": 3,
+        "assists": 0
+      },
+      {
+        "name": "אלון",
+        "goals": 3,
+        "assists": 0
+      },
+      {
+        "name": "זיו",
+        "goals": 0,
+        "assists": 1
+      }
+    ],
+    "teamB": [
+      {
+        "name": "קצ'ל",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "רפי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "אייל",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "זליצקי",
+        "goals": 1,
+        "assists": 1
+      },
+      {
+        "name": "פוגל",
+        "goals": 1,
+        "assists": 1
+      },
+      {
+        "name": "רמי",
+        "goals": 0,
+        "assists": 0
+      }
+    ],
+    "scoreA": 9,
+    "scoreB": 2,
+    "mvp": "רותם"
   }
 ]
