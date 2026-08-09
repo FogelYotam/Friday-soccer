@@ -39809,17 +39809,22 @@
       {
         "name": "מוש",
         "goals": 3,
-        "assists": 0
+        "assists": 1
       },
       {
         "name": "אלון",
-        "goals": 3,
+        "goals": 2,
         "assists": 0
       },
       {
         "name": "זיו",
         "goals": 0,
         "assists": 1
+      },
+      {
+        "name": "עצמי",
+        "goals": 1,
+        "assists": 0
       }
     ],
     "teamB": [
