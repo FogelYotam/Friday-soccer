@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚽ בוני קבוצות</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; padding: 14px; }
+
+h1 { text-align: center; font-size: 22px; margin-bottom: 4px; color: #f0c040; }
+.subtitle { text-align: center; color: #8b949e; font-size: 13px; margin-bottom: 14px; }
+
+.count-bar {
+  text-align: center;
+  padding: 8px;
+  background: #161b22;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: #8b949e;
+}
+.count-bar span { color: #f0c040; font-weight: bold; }
+
+.player-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.player-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #161b22;
+  border: 2px solid #21262d;
+  border-radius: 8px;
+  padding: 7px 9px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+.player-card:hover { border-color: #444c56; }
+.player-card.selected { border-color: #f0c040; background: #1c2128; }
+.player-card input[type="checkbox"] { display: none; }
+.player-name { flex: 1; font-size: 14px; }
+
+.rating-badge {
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+.r-gold  { background: #f0c040; color: #0d1117; }
+.r-green { background: #2ea043; color: #fff; }
+.r-yellow{ background: #9e6a03; color: #fff; }
+.r-red   { background: #8b1a1a; color: #fff; }
+
+.controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.btn {
+  flex: 1;
+  min-width: 90px;
+  padding: 12px 8px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.85; }
+.btn-primary  { background: #f0c040; color: #0d1117; }
+.btn-danger   { background: #21262d; color: #f85149; border: 1px solid #30363d; }
+.btn-whatsapp { background: #128c7e; color: #fff; }
+
+.result {
+  background: #161b22;
+  border: 1px solid #21262d;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.result-title { font-weight: bold; font-size: 15px; color: #f0c040; }
+.diff-badge {
+  border-radius: 10px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: bold;
+}
+.diff-tight  { background: #0f3d0f; color: #56d364; border: 1px solid #2ea043; }
+.diff-medium { background: #3d2c0f; color: #e3b341; border: 1px solid #9e6a03; }
+.diff-wide   { background: #3d0f0f; color: #f85149; border: 1px solid #8b1a1a; }
+
+.team { margin-bottom: 10px; }
+.team:last-child { margin-bottom: 0; }
+.team-label {
+  font-size: 13px;
+  font-weight: bold;
+  margin-bottom: 5px;
+  color: #8b949e;
+}
+.team-players { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
+.player-chip {
+  background: #21262d;
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 13px;
+}
+.team-sum { font-size: 12px; color: #8b949e; }
+
+.warn {
+  text-align: center;
+  color: #f0c040;
+  padding: 24px;
+  background: #161b22;
+  border-radius: 10px;
+  font-size: 15px;
+}
+
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2ea043;
+  color: #fff;
+  padding: 10px 22px;
+  border-radius: 20px;
+  font-size: 14px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 999;
+}
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<h1>⚽ בוני קבוצות</h1>
+<p class="subtitle">בחר שחקנים → חשב קבוצות</p>
+
+<div class="count-bar"><span id="countNum">0</span> שחקנים נבחרו</div>
+
+<div class="player-grid" id="playerGrid"></div>
+
+<div class="controls">
+  <button class="btn btn-primary"  onclick="buildTeams()">🔀 חשב קבוצות</button>
+  <button class="btn btn-danger"   onclick="clearAll()">✕ נקה</button>
+  <button class="btn btn-whatsapp" onclick="copyWhatsApp()">📋 וואטסאפ</button>
+</div>
+
+<div id="results"></div>
+<div class="toast" id="toast">הועתק ✓</div>
+
+<script>
+const PLAYERS = [
+  {name:"עידן",        rating:5.25},
+  {name:"תומר סגל",   rating:5.0},
+  {name:"רותם",       rating:5.0},
+  {name:"אלי",        rating:5.0},
+  {name:"פוגל",       rating:4.75},
+  {name:"זיו",        rating:4.75},
+  {name:"ניר",        rating:4.5},
+  {name:"זליצקי",     rating:4.5},
+  {name:"אורן",       rating:4.5},
+  {name:"ליאון",      rating:4.0},
+  {name:"און",        rating:4.0},
+  {name:"דורי",       rating:4.0},
+  {name:"שחף",        rating:4.0},
+  {name:"אסף בן ארי", rating:4.0},
+  {name:"ברק",        rating:4.0},
+  {name:"איתמר",      rating:4.0},
+  {name:"קובי",       rating:3.75},
+  {name:"טל",         rating:3.5},
+  {name:"ביטון",      rating:3.5},
+  {name:"אילן",       rating:3.5},
+  {name:"יוני",       rating:3.5},
+  {name:"מוש",        rating:3.5},
+  {name:"יעקב",       rating:3.5},
+  {name:"אמיר",       rating:3.5},
+  {name:"שי",         rating:3.5},
+  {name:"אלון",       rating:3.5},
+  {name:"דדי",        rating:3.5},
+  {name:"יונתן",      rating:3.25},
+  {name:"ירון",       rating:3.0},
+  {name:"רן",         rating:3.0},
+  {name:"פלד",        rating:3.0},
+  {name:"אייל",       rating:3.0},
+  {name:"בבצ'וק",     rating:3.0},
+  {name:"ששי",        rating:3.0},
+  {name:"סלו",        rating:3.0},
+  {name:"אסף",        rating:2.5},
+  {name:"קרליטו",     rating:2.5},
+  {name:"מוטי",       rating:2.25},
+  {name:"רמי",        rating:2.0},
+  {name:"רפי",        rating:1.5},
+  {name:"לירן",       rating:1.5},
+  {name:"מיקי",       rating:1.0},
+  {name:"אמנון",      rating:1.0},
+  {name:"קצ'ל",       rating:0.75},
+];
+
+// pairs that must be on opposite teams (if both are selected)
+const MUST_SPLIT = [
+  ["מוטי", "קצ'ל"],
+];
+// if only one of מוטי/קצ'ל plays, he faces one of these
+const ANCHOR_OPP = ["ירון", "רפי"];
+const KEEPERS = new Set(["מיקי","אמנון","ירון","ברק","רפי","ביטון","בבצ'וק"]);
+
+const NORM = {
+  "אסף ד":"אסף","אסף ש":"אסף",'אסף ד"ר':"אסף","אסף דר":"אסף","קצל":"קצ'ל",
+  "בבצוק":"בבצ'וק","באבצוק":"בבצ'וק","יוני?":"יוני","מוטי?":"מוטי",
+  "יוני חבר של רן":"יוני","יוני- אורח":"יוני","אייל-אורח":"אייל",
+  "תומר":"תומר סגל","אסף חדש":"אסף בן ארי","אסף חבר של פוגל":"אסף בן ארי",
+  "זלציקי":"זליצקי","קליטו":"קרליטו",
+};
+const norm = n => NORM[(n||'').trim()] || (n||'').trim();
+
+const selected = new Set();
+let lastResults = [];
+
+// ── Effective rating = manual base + up to ±0.75 from recent form + ELO ──────
+let EFF = {};   // name -> {base, adj, eff, elo, form}
+const MAX_ADJ = 0.75;
+function effOf(name){ return (EFF[name] && EFF[name].eff!=null) ? EFF[name].eff : (PLAYERS.find(p=>p.name===name)||{}).rating || 3; }
+
+function computeEffective(games){
+  const R={}, SER={};
+  const pd = d => { const[m,dd,y]=(d||'').split('/'); return new Date(+y,+m-1,+dd).getTime(); };
+  [...games].sort((a,b)=>pd(a.date)-pd(b.date)).forEach(g=>{
+    const tA=(g.teamA||[]).map(p=>norm(p.name)).filter(Boolean);
+    const tB=(g.teamB||[]).map(p=>norm(p.name)).filter(Boolean);
+    if(!tA.length||!tB.length) return;
+    const get=n=>n in R?R[n]:1500;
+    const Ra=tA.reduce((s,n)=>s+get(n),0)/tA.length, Rb=tB.reduce((s,n)=>s+get(n),0)/tB.length;
+    const Ea=1/(1+Math.pow(10,(Rb-Ra)/400));
+    const sA=g.scoreA??0,sB=g.scoreB??0, Sa=sA>sB?1:sA<sB?0:.5, dA=28*(Sa-Ea), t=pd(g.date);
+    tA.forEach(n=>{R[n]=get(n)+dA;(SER[n]=SER[n]||[]).push({t,r:R[n]});});
+    tB.forEach(n=>{R[n]=get(n)-dA;(SER[n]=SER[n]||[]).push({t,r:R[n]});});
+  });
+  const now=Date.now(), cut=now-6*30*86400000, form={}, elo={};
+  Object.keys(R).forEach(n=>{ elo[n]=R[n]; const s=SER[n];
+    const before=s.filter(x=>x.t<cut); const base=before.length?before[before.length-1].r:s[0].r; form[n]=R[n]-base; });
+  const rated=PLAYERS.map(p=>p.name).filter(n=>n in elo);
+  const zstat=arr=>{ const m=arr.reduce((a,b)=>a+b,0)/arr.length; const sd=Math.sqrt(arr.reduce((a,b)=>a+(b-m)*(b-m),0)/arr.length)||1; return [m,sd]; };
+  const [fm,fsd]=zstat(rated.map(n=>form[n])), [em,esd]=zstat(rated.map(n=>elo[n]));
+  EFF={};
+  PLAYERS.forEach(p=>{
+    if(!(p.name in elo)){ EFF[p.name]={base:p.rating, adj:0, eff:p.rating, elo:null, form:null}; return; }
+    const fz=(form[p.name]-fm)/fsd, ez=(elo[p.name]-em)/esd;   // form 60%, ELO 40%
+    let adj=(0.6*fz + 0.4*ez)*0.5;
+    adj=Math.max(-MAX_ADJ, Math.min(MAX_ADJ, adj));
+    EFF[p.name]={base:p.rating, adj:Math.round(adj*100)/100, eff:Math.round((p.rating+adj)*100)/100,
+                 elo:Math.round(elo[p.name]), form:Math.round(form[p.name])};
+  });
+  renderGrid();
+}
+
+function ratingClass(r) {
+  if (r >= 4.5) return 'r-gold';
+  if (r >= 3.5) return 'r-green';
+  if (r >= 2.5) return 'r-yellow';
+  return 'r-red';
+}
+
+function renderGrid() {
+  const grid = document.getElementById('playerGrid');
+  grid.innerHTML = '';
+  PLAYERS.forEach(p => {
+    const card = document.createElement('label');
+    card.className = 'player-card' + (selected.has(p.name) ? ' selected' : '');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = selected.has(p.name);
+    cb.addEventListener('change', () => {
+      selected[cb.checked ? 'add' : 'delete'](p.name);
+      card.classList.toggle('selected', cb.checked);
+      document.getElementById('countNum').textContent = selected.size;
+    });
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'player-name';
+    nameSpan.textContent = p.name;
+    const e = EFF[p.name];
+    const eff = e ? e.eff : p.rating;
+    const badge = document.createElement('span');
+    badge.className = 'rating-badge ' + ratingClass(eff);
+    badge.textContent = eff.toFixed(2);
+    if (e && e.adj) {
+      badge.title = `בסיס ${e.base} ${e.adj>0?'+':''}${e.adj} (כושר/ELO)`;
+      const arrow = document.createElement('span');
+      arrow.style.cssText = 'font-size:10px;margin-right:2px;color:'+(e.adj>0?'#56d364':'#f85149');
+      arrow.textContent = e.adj>0 ? '▲' : '▼';
+      nameSpan.appendChild(arrow);
+    }
+    card.appendChild(cb);
+    card.appendChild(nameSpan);
+    card.appendChild(badge);
+    grid.appendChild(card);
+  });
+}
+
+function clearAll() {
+  selected.clear();
+  lastResults = [];
+  document.getElementById('results').innerHTML = '';
+  renderGrid();
+  document.getElementById('countNum').textContent = 0;
+}
+
+function combinations(arr, k) {
+  const result = [];
+  function go(start, cur) {
+    if (cur.length === k) { result.push([...cur]); return; }
+    for (let i = start; i <= arr.length - (k - cur.length); i++) {
+      cur.push(arr[i]);
+      go(i + 1, cur);
+      cur.pop();
+    }
+  }
+  go(0, []);
+  return result;
+}
+
+function teamSum(arr) { return arr.reduce((s, p) => s + effOf(p.name), 0); }
+
+// all hard constraints: keeper vs keeper, מוטי vs קצ'ל (or vs ירון/רפי)
+function valid(teamA, teamB) {
+  const nA = new Set(teamA.map(p=>p.name)), nB = new Set(teamB.map(p=>p.name));
+  const kA = teamA.filter(p=>KEEPERS.has(p.name)).length, kB = teamB.filter(p=>KEEPERS.has(p.name)).length;
+  if (kA + kB >= 2 && (kA < 1 || kB < 1)) return false;   // both teams need a keeper
+  if (Math.abs(kA - kB) > 1) return false;
+  const has = n => nA.has(n) || nB.has(n);
+  const sideOf = n => nA.has(n) ? 'A' : (nB.has(n) ? 'B' : null);
+  const moti = has('מוטי'), katz = has("קצ'ל");
+  if (moti && katz) {
+    if (sideOf('מוטי') === sideOf("קצ'ל")) return false;
+  } else if (moti || katz) {
+    const as = sideOf(moti ? 'מוטי' : "קצ'ל");
+    const opps = ANCHOR_OPP.filter(has);
+    if (opps.length && !opps.some(o => sideOf(o) && sideOf(o) !== as)) return false;
+  }
+  return true;
+}
+
+function canon(teamA, teamB) {
+  const a = teamA.map(p => p.name).sort().join('\0');
+  const b = teamB.map(p => p.name).sort().join('\0');
+  return a < b ? a + '|' + b : b + '|' + a;
+}
+
+function buildTeams() {
+  const players = PLAYERS.filter(p => selected.has(p.name));
+  const n = players.length;
+  if (n < 4) {
+    document.getElementById('results').innerHTML = '<div class="warn">בחר לפחות 4 שחקנים</div>';
+    return;
+  }
+
+  const half = Math.floor(n / 2);
+  const combos = combinations(players, half);
+
+  const seen = new Set();
+  const results = [];
+
+  for (const teamA of combos) {
+    const teamANames = new Set(teamA.map(p => p.name));
+    const teamB = players.filter(p => !teamANames.has(p.name));
+
+    if (!valid(teamA, teamB)) continue;
+
+    const key = canon(teamA, teamB);
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const sA = teamSum(teamA), sB = teamSum(teamB);
+    results.push({ teamA, teamB, sA, sB, diff: Math.abs(sA - sB) });
+  }
+
+  results.sort((a, b) => a.diff - b.diff);
+  lastResults = results.slice(0, 4);
+
+  if (!lastResults.length) {
+    document.getElementById('results').innerHTML = '<div class="warn">אין חלוקה אפשרית עם האילוצים הנוכחיים</div>';
+    return;
+  }
+
+  renderResults();
+}
+
+function renderResults() {
+  document.getElementById('results').innerHTML = lastResults.map((r, i) => {
+    const dc = r.diff < 0.5 ? 'diff-tight' : r.diff < 1.5 ? 'diff-medium' : 'diff-wide';
+    const chips = arr => arr.map(p => `<span class="player-chip">${p.name}</span>`).join('');
+    return `
+      <div class="result">
+        <div class="result-header">
+          <span class="result-title">הצעה ${i + 1}</span>
+          <span class="diff-badge ${dc}">הפרש ${r.diff.toFixed(2)}</span>
+        </div>
+        <div class="team">
+          <div class="team-label">⚪ קבוצה א — כוח ${r.sA.toFixed(1)}</div>
+          <div class="team-players">${chips(r.teamA)}</div>
+        </div>
+        <div class="team">
+          <div class="team-label">🔵 קבוצה ב — כוח ${r.sB.toFixed(1)}</div>
+          <div class="team-players">${chips(r.teamB)}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function copyWhatsApp() {
+  if (!lastResults.length) { buildTeams(); return; }
+  const r = lastResults[0];
+  const text =
+    `⚽ חלוקת קבוצות\n\n` +
+    `⚪ קבוצה א:\n${r.teamA.map(p => p.name).join(', ')}\n\n` +
+    `🔵 קבוצה ב:\n${r.teamB.map(p => p.name).join(', ')}`;
+  navigator.clipboard.writeText(text).then(() => {
+    const t = document.getElementById('toast');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  });
+}
+
+renderGrid();
+// load game history → compute the ±0.75 form/ELO adjustment on top of the base ratings
+fetch('games_data.json')
+  .then(r => r.json())
+  .then(games => computeEffective(games))
+  .catch(() => { document.querySelector('.subtitle').textContent = 'בחר שחקנים → חשב קבוצות (ציון בסיס בלבד — לא נטענו נתוני משחקים)'; });
+</script>
+</body>
+</html>
