@@ -169,11 +169,15 @@ function parseDate(d){
   const p=(d||'').split('/'); if(p.length!==3) return 0;
   return new Date(+p[2], +p[0]-1, +p[1]).getTime();
 }
-let ELO={}, ROLE={}, PAIR_LAST={}, LAST_GAME=null;
+let ELO={}, ROLE={}, PAIR_LAST={}, LAST_GAME=null, SCORE={};
 const pairKey=(a,b)=> a<b ? a+'|'+b : b+'|'+a;
+// same power-model constants as the dashboard
+const _DAY=86400000, ELO_FORM_WINDOW_MONTHS=6, ELO_ABSENCE_PER_MONTH=10, ELO_ABSENCE_MAX=300,
+      ELO_DECLINE_GAMES=10, ATT_POS_MULT={'שוער':1.0,'הגנה':0.8,'התקפה':1.0}, ATT_SCALE=160,
+      GOAL_W=1.0, ASSIST_W=0.3, ATT_SHRINK=10, RECENT_YEARS=1.5, DEF_SCALE=25;
 
 function buildRatings(){
-  const R={}, gm={}, gl={}, as={};
+  const R={}, gm={}, gl={}, as={}, SER={};
   const sorted=[...gamesData].sort((a,b)=>parseDate(a.date)-parseDate(b.date));
   const get=n=>(n in R)?R[n]:1500;
   sorted.forEach(g=>{
@@ -185,7 +189,8 @@ function buildRatings(){
     const Ea=1/(1+Math.pow(10,(Rb-Ra)/400));
     const sA=g.scoreA??0, sB=g.scoreB??0;
     const Sa=sA>sB?1:sA<sB?0:0.5, dA=28*(Sa-Ea), t=parseDate(g.date);
-    tA.forEach(n=>R[n]=get(n)+dA); tB.forEach(n=>R[n]=get(n)-dA);
+    tA.forEach(n=>{R[n]=get(n)+dA; (SER[n]=SER[n]||[]).push({t,r:R[n],opp:Rb});});
+    tB.forEach(n=>{R[n]=get(n)-dA; (SER[n]=SER[n]||[]).push({t,r:R[n],opp:Ra});});
     [[tA,g.teamA],[tB,g.teamB]].forEach(([names,raw])=>{
       names.forEach((n,i)=>{ gm[n]=(gm[n]||0)+1; gl[n]=(gl[n]||0)+((raw[i]||{}).goals||0); as[n]=(as[n]||0)+((raw[i]||{}).assists||0); });
       for(let i=0;i<names.length;i++) for(let j=i+1;j<names.length;j++)
@@ -207,6 +212,44 @@ function buildRatings(){
     if(gm[n]>=30 && (gl[n]/gm[n])<0.25 && (as[n]/gm[n])<0.25) ROLE[n]='שוער';
     else ROLE[n] = c>=med ? 'התקפה' : 'הגנה';
   });
+  computeScores(SER, gm);
+}
+
+// ── Composite power score (same model as the dashboard's דירוג כוח) ──────────
+function computeScores(SER, gm){
+  const now=Date.now(), CUT=now-RECENT_YEARS*365*_DAY, roleOf=n=>ROLE[n]||'התקפה',
+        IS_DEF=n=>['הגנה','שוער'].includes(roleOf(n)), names=Object.keys(gm);
+  // recent goals/assists per game
+  const RA={};
+  gamesData.forEach(g=>{ if(parseDate(g.date)<CUT) return;
+    [...(g.teamA||[]),...(g.teamB||[])].forEach(p=>{ const n=norm(p.name); if(!n) return;
+      const a=RA[n]=RA[n]||{gm:0,g:0,a:0}; a.gm++; a.g+=p.goals||0; a.a+=p.assists||0; }); });
+  const attRaw=n=>{ const a=RA[n]; return (a&&a.gm)?(a.g*GOAL_W+a.a*ASSIST_W)/a.gm:null; };
+  // attack points: z within role × shrink × pos-mult × scale
+  const byRole={}; names.forEach(n=>{ const v=attRaw(n); if(v===null) return; (byRole[roleOf(n)]=byRole[roleOf(n)]||[]).push(v); });
+  const avg={}, sd={};
+  Object.keys(byRole).forEach(r=>{ const v=byRole[r], m=v.reduce((a,b)=>a+b,0)/v.length; avg[r]=m; sd[r]=Math.sqrt(v.reduce((a,b)=>a+(b-m)*(b-m),0)/v.length)||1; });
+  const ATT={};
+  names.forEach(n=>{ const v=attRaw(n); if(v===null){ATT[n]=0;return;} const r=roleOf(n);
+    const z=(v-avg[r])/sd[r], w=(RA[n]||{}).gm||0; ATT[n]=Math.round(z*(w/(w+ATT_SHRINK))*(ATT_POS_MULT[r]||1)*ATT_SCALE); });
+  // defence points: conceded vs. lineup-predicted, recent window
+  const tg=[]; let tc=0,ts=0,cn=0;
+  gamesData.forEach(g=>{ if(parseDate(g.date)<CUT) return;
+    const tA=(g.teamA||[]).filter(p=>p.name), tB=(g.teamB||[]).filter(p=>p.name); if(!tA.length||!tB.length) return;
+    const sA=g.scoreA??0,sB=g.scoreB??0;
+    [[tA,sB],[tB,sA]].forEach(([team,conc])=>{ const sh=team.filter(p=>IS_DEF(norm(p.name))).length/team.length; tg.push({team,conc,sh}); tc+=conc; ts+=sh; cn++; }); });
+  const DEF={};
+  if(cn){ const ac=tc/cn, ash=ts/cn, acc={};
+    tg.forEach(({team,conc,sh})=>{ const diff=ac*(1-0.6*(sh-ash))-conc, ah=Math.max(0,ash-sh), dh=Math.max(0,sh-ash);
+      team.forEach(p=>{ const n=norm(p.name), w=diff>=0?(1+ah*2):(IS_DEF(n)?1.5:1+dh*2); (acc[n]=acc[n]||{pts:0,gm:0}); acc[n].pts+=diff*w; acc[n].gm++; }); });
+    Object.keys(acc).forEach(n=>{ const a=acc[n]; DEF[n]=Math.round((a.pts/a.gm)*(a.gm/(a.gm+ATT_SHRINK))*DEF_SCALE); }); }
+  // form / absence → base rating, then compose
+  SCORE={};
+  names.forEach(n=>{ const s=SER[n]; if(!s||!s.length){ SCORE[n]=ELO[n]??1500; return; }
+    const cur=ELO[n], last=s[s.length-1].t, days=Math.round((now-last)/_DAY);
+    const tail=s.slice(-ELO_DECLINE_GAMES), decl=tail.length>1?Math.max(0,tail[0].r-tail[tail.length-1].r):0, df=1+Math.min(1,decl/150);
+    const months=Math.max(0,days/30-1), absence=Math.min(ELO_ABSENCE_MAX,Math.round(months*ELO_ABSENCE_PER_MONTH*df));
+    SCORE[n]=Math.round((cur-absence)+(ATT[n]||0)+(DEF[n]||0)); });
 }
 
 let roster=[];   // [{name, elo, role, known}]
@@ -217,7 +260,7 @@ function parseRoster(){
   names.forEach(n0=>{
     const n=norm(n0);
     if(seen.has(n)) return; seen.add(n);
-    roster.push({name:n, elo:ELO[n]??1500, role:ROLE[n]||'התקפה', known:knownPlayers.has(n)});
+    roster.push({name:n, elo:ELO[n]??1500, score:SCORE[n]??(ELO[n]??1500), role:ROLE[n]||'התקפה', known:knownPlayers.has(n)});
   });
   const el=document.getElementById('rosterStatus');
   if(roster.length<4){ el.innerHTML=`<div class="status st-err">צריך לפחות 4 שחקנים (זוהו ${roster.length})</div>`;
@@ -227,7 +270,7 @@ function parseRoster(){
   el.innerHTML=`<div class="status st-ok">זוהו ${roster.length} שחקנים</div>
     <div style="font-size:.8rem;color:#94a3b8;line-height:1.9;margin-top:6px">
     ${roster.map(p=>`<span style="display:inline-block;background:#0f172a;border:1px solid #334155;border-radius:12px;padding:2px 9px;margin:2px">
-      ${icon(p.role)} ${p.name} <b style="color:#fbbf24">${p.elo}</b>${p.known?'':' <span style="color:#f59e0b">✦חדש</span>'}</span>`).join('')}</div>
+      ${icon(p.role)} ${p.name} <b style="color:#fbbf24">${p.score}</b>${p.known?'':' <span style="color:#f59e0b">✦חדש</span>'}</span>`).join('')}</div>
     ${newOnes.length?`<div style="font-size:.72rem;color:#f59e0b;margin-top:6px">✦ ${newOnes.length} שחקנים חדשים — קיבלו דירוג התחלתי 1500</div>`:''}`;
   document.getElementById('splitOpts').style.display='block';
   document.getElementById('splitResult').innerHTML='';
@@ -248,12 +291,16 @@ const teamsOf = sel => {
   const B=roster.filter((_,i)=>!sel.includes(i));
   return [A,B];
 };
-const sum   = t => t.reduce((s,p)=>s+p.elo,0);
-const cnt   = (t,r) => t.filter(p=>p.role===r).length;
-const posGap= (A,B) => Math.abs(cnt(A,'שוער')-cnt(B,'שוער'))*120
-                     + Math.abs(cnt(A,'הגנה')-cnt(B,'הגנה'))*40
-                     + Math.abs(cnt(A,'התקפה')-cnt(B,'התקפה'))*40;
-const eloGap= (A,B) => Math.abs(sum(A)/A.length - sum(B)/B.length);
+const sum    = t => t.reduce((s,p)=>s+p.elo,0);
+const sumSc  = t => t.reduce((s,p)=>s+p.score,0);
+const cnt    = (t,r) => t.filter(p=>p.role===r).length;
+const posGap = (A,B) => Math.abs(cnt(A,'שוער')-cnt(B,'שוער'))*120
+                      + Math.abs(cnt(A,'הגנה')-cnt(B,'הגנה'))*40
+                      + Math.abs(cnt(A,'התקפה')-cnt(B,'התקפה'))*40;
+const eloGap = (A,B) => Math.abs(sum(A)/A.length - sum(B)/B.length);
+const scoreGap = (A,B) => Math.abs(sumSc(A)/A.length - sumSc(B)/B.length);
+// balance by the composite score first, ELO only breaks ties
+const balGap = (A,B) => scoreGap(A,B)*1000 + eloGap(A,B);
 // average days since each pair of team-mates last played together (higher = fresher)
 function freshness(A,B){
   const now=Date.now(); let tot=0,n=0;
@@ -291,19 +338,19 @@ const canon = (A,B) => {
   return a<b ? a+'|'+b : b+'|'+a;
 };
 function scoreFor(mode,A,B){
-  if(mode==='balanced') return eloGap(A,B) + posGap(A,B);
+  if(mode==='balanced') return balGap(A,B) + posGap(A,B);
   if(mode==='rematch'){
-    if(!LAST_GAME) return eloGap(A,B);
+    if(!LAST_GAME) return balGap(A,B);
     const agree=(X,Y)=> X.filter(p=>LAST_GAME.A.has(p.name)).length + Y.filter(p=>LAST_GAME.B.has(p.name)).length;
-    return -Math.max(agree(A,B),agree(B,A))*1000 + eloGap(A,B);
+    return -Math.max(agree(A,B),agree(B,A))*1e6 + balGap(A,B);
   }
-  if(mode==='surprise') return -freshness(A,B)*2 + eloGap(A,B) + posGap(A,B);
+  if(mode==='surprise') return -freshness(A,B)*2000 + balGap(A,B) + posGap(A,B);
   if(mode==='devatt'){   // maximise role separation, keep it balanced
     const rv=p=>p.role==='התקפה'?1:-1;
     const sep=Math.abs(A.reduce((s,p)=>s+rv(p),0)/A.length - B.reduce((s,p)=>s+rv(p),0)/B.length);
-    return -sep*1000 + eloGap(A,B);
+    return -sep*1e6 + balGap(A,B);
   }
-  return eloGap(A,B);
+  return balGap(A,B);
 }
 
 let _splitCache={sig:null, splits:null};
@@ -344,17 +391,18 @@ function showSplit(A,B,mode){
   const label={balanced:'⚖️ הכי מאוזן', rematch:'🔁 משחק חוזר', surprise:'🎲 משחק הפתעה', devatt:'🛡️ הגנה מול התקפה'}[mode];
   const icon=r=>r==='שוער'?'🧤':r==='הגנה'?'🛡️':'⚔️';
   const col=t=>t.map(p=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #1e293b">
-      <span>${icon(p.role)} ${p.name}</span><span style="color:#fbbf24">${p.elo}</span></div>`).join('');
-  const avg=t=>Math.round(sum(t)/t.length);
+      <span>${icon(p.role)} ${p.name}</span>
+      <span><b style="color:#fbbf24">${p.score}</b> <span style="color:#475569;font-size:.72rem">ELO ${p.elo}</span></span></div>`).join('');
+  const avg=t=>Math.round(sumSc(t)/t.length);           // team average by score
   const fresh=Math.round(freshness(A,B));
   window._splitA=A; window._splitB=B;
   document.getElementById('splitResult').innerHTML=`
-    <div style="font-size:.8rem;color:#64748b;margin-bottom:6px">${label} · פער ממוצע ${Math.abs(avg(A)-avg(B))} נק׳ · טריות ${fresh} ימים</div>
+    <div style="font-size:.8rem;color:#64748b;margin-bottom:6px">${label} · פער ציון ${Math.abs(avg(A)-avg(B))} · טריות ${fresh} ימים</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div style="background:#0f172a;border-top:3px solid #3b82f6;border-radius:8px;padding:8px">
-        <div style="color:#3b82f6;font-weight:bold;font-size:.85rem;margin-bottom:4px">קבוצה א׳ · ${avg(A)}</div>${col(A)}</div>
+        <div style="color:#3b82f6;font-weight:bold;font-size:.85rem;margin-bottom:4px">קבוצה א׳ · ציון ${avg(A)}</div>${col(A)}</div>
       <div style="background:#0f172a;border-top:3px solid #ef4444;border-radius:8px;padding:8px">
-        <div style="color:#ef4444;font-weight:bold;font-size:.85rem;margin-bottom:4px">קבוצה ב׳ · ${avg(B)}</div>${col(B)}</div>
+        <div style="color:#ef4444;font-weight:bold;font-size:.85rem;margin-bottom:4px">קבוצה ב׳ · ציון ${avg(B)}</div>${col(B)}</div>
     </div>
     <button class="btn btn-green" onclick="applySplit()">✓ השתמש בהרכב הזה</button>`;
 }

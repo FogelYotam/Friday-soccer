@@ -1899,7 +1899,10 @@ function profileBody(name, chartId) {
       ${sBox('בישולים', p.a, '#8b5cf6')}
       ${sBox('MVP',   b.mvp||'-', '#f59e0b')}
       ${sBox("שניצ'",  b.wg||'-',  '#10b981')}
-      ${(()=>{const e=ELO[name]; return e?sBox('דירוג כוח ELO', e.rating+`<div style="font-size:.55rem;color:#64748b;font-weight:normal">שיא ${e.peak}</div>`, e.rating>=1600?'#10b981':e.rating>=1500?'#3b82f6':'#f59e0b'):'';})()}
+      ${(()=>{const e=ELO[name]; return e?sBox('דירוג ELO', e.rating+`<div style="font-size:.55rem;color:#64748b;font-weight:normal">שיא ${e.peak}</div>`, e.rating>=1600?'#10b981':e.rating>=1500?'#3b82f6':'#f59e0b'):'';})()}
+      ${(()=>{const f=eloForm(name); if(!f) return sBox('דירוג כוח (ציון)','-','#64748b');
+        const sc=Math.round(f.rating+(ATTACK_PTS[name]||0)+(DEFENSE_PTS[name]||0));
+        return sBox('דירוג כוח (ציון)', sc+`<div style="font-size:.55rem;color:#64748b;font-weight:normal">ELO+התקפה+הגנה</div>`, sc>=1600?'#10b981':sc>=1450?'#3b82f6':'#f59e0b');})()}
       ${sBox('שיא רצף ניצחונות', (sk&&sk.bestW) ? sk.bestW+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestWFrom, sk.bestWTo)}</div>` : '-', '#fb923c')}
       ${sBox('שיא ללא הפסד',     (sk&&sk.bestU) ? sk.bestU+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestUFrom, sk.bestUTo)}</div>` : '-', '#22d3ee')}
       ${sBox('שיא ללא ניצחון',   (sk&&sk.bestNW) ? sk.bestNW+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestNWFrom, sk.bestNWTo)}</div>` : '-', '#94a3b8')}
