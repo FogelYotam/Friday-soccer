@@ -39931,5 +39931,70 @@
     ],
     "scoreA": 4,
     "scoreB": 4
+  },
+  {
+    "date": "8/21/2026",
+    "teamA": [
+      {
+        "name": "עידן",
+        "goals": 2,
+        "assists": 1
+      },
+      {
+        "name": "אייל",
+        "goals": 3,
+        "assists": 0
+      },
+      {
+        "name": "זיו",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "רפי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "יונתן",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "אלון",
+        "goals": 0,
+        "assists": 2
+      }
+    ],
+    "teamB": [
+      {
+        "name": "זליצקי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "פוגל",
+        "goals": 0,
+        "assists": 2
+      },
+      {
+        "name": "אמיר",
+        "goals": 0,
+        "assists": 1
+      },
+      {
+        "name": "ירון",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "דן",
+        "goals": 3,
+        "assists": 0
+      }
+    ],
+    "scoreA": 5,
+    "scoreB": 3,
+    "mvp": "אייל"
   }
 ]
