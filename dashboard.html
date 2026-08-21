@@ -503,6 +503,36 @@ function eloForm(name) {
           absence, daysSince, gm: recentGm, cur,
           decline: Math.round(decline), declineFactor, avgOpp};
 }
+// ── Effective 1–5 rating (manual base + ±0.75 form/ELO volatility) ────────────
+// Same model the team balancer (entry.html) uses, so the profile number matches
+// the number that decides the teams. base is the owner's manual 0.75–5.25 rating;
+// the ±0.75 swing reflects recent form (6-month ELO change) and current ELO.
+const MANUAL_BASE = {"און": 4.0, "אורן": 4.5, "אייל": 3.0, "אילן": 3.5, "איתמר": 4.0, "אלון": 3.5, "אלי": 5.0, "אמיר": 3.5, "אמנון": 1.0, "אסף": 2.5, "אסף בן ארי": 4.0, "בבצ'וק": 3.0, "ביטון": 3.5, "ברק": 4.0, "דדי": 3.5, "דורי": 4.0, "זיו": 4.75, "זליצקי": 4.5, "טל": 3.5, "יוני": 3.5, "יונתן": 3.25, "יעקב": 3.5, "ירון": 3.0, "ליאון": 4.0, "לירן": 1.5, "מוטי": 2.25, "מוש": 3.5, "מיקי": 1.0, "ניר": 4.5, "סלו": 3.0, "עידן": 5.25, "פוגל": 4.75, "פלד": 3.0, "קובי": 3.75, "קצ'ל": 0.75, "קרליטו": 2.5, "רותם": 5.0, "רמי": 2.0, "רן": 3.0, "רפי": 1.5, "שחף": 4.0, "שי": 3.5, "ששי": 3.0, "תומר סגל": 5.0};
+const EFFECTIVE = (() => {
+  const mean = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 0;
+  const std  = (a,m) => Math.sqrt(mean(a.map(x=>(x-m)**2))) || 1;
+  const rows = Object.keys(MANUAL_BASE).filter(n => ELO[n]).map(n => {
+    const f = eloForm(n);
+    return {n, base: MANUAL_BASE[n], form: f?f.form:0, elo: (ELO[n]||{}).rating||1500};
+  });
+  const fm=mean(rows.map(r=>r.form)), fs=std(rows.map(r=>r.form),fm);
+  const em=mean(rows.map(r=>r.elo)),  es=std(rows.map(r=>r.elo),em);
+  const bm=mean(rows.map(r=>r.base));
+  let cov=0, vv=0;
+  rows.forEach(r=>{cov+=(r.elo-em)*(r.base-bm); vv+=(r.elo-em)**2;});
+  const slope = vv ? cov/vv : 0;
+  const out = {};
+  Object.keys(ELO).forEach(n => {
+    const f=eloForm(n), form=f?f.form:0, elo=(ELO[n]||{}).rating||1500;
+    let base, est=false;
+    if (MANUAL_BASE[n]!=null) base = MANUAL_BASE[n];
+    else { base = Math.max(0.75, Math.min(5.25, Math.round((bm+slope*(elo-em))*4)/4)); est=true; }
+    const fz=(form-fm)/fs, ez=(elo-em)/es;
+    const adj = Math.max(-0.75, Math.min(0.75, (0.6*fz+0.4*ez)*0.5));
+    out[n] = {score: Math.round((base+adj)*100)/100, base, adj: Math.round(adj*100)/100, est};
+  });
+  return out;
+})();
 const _yearStreaksCache = {};
 function yearStreaks(yr) {
   if (!_yearStreaksCache[yr])
@@ -1591,6 +1621,8 @@ function profileBody(name, chartId) {
       <span style="background:#0f172a;color:#94a3b8;padding:3px 10px;border-radius:12px;font-size:.78rem">${p.gm} משחקים</span>
       ${(()=>{const r=ROLE[name]; return r?`<span title="${r.why} · ${r2(r.c)} תרומה/משחק" style="background:#1e293b;border:1px solid #334155;color:#fbbf24;padding:3px 10px;border-radius:12px;font-size:.78rem">${r.icon} ${r.role}</span>`:'';})()}
       ${skBadge}
+      ${(()=>{const s=EFFECTIVE[name]; return s?`<span title="ציון לקביעת כוחות (בסיס ${s.base}${s.adj>=0?' +':' '}${s.adj} כושר/ELO)${s.est?' · מוערך':''}" style="background:#422006;border:1px solid #a16207;color:#fbbf24;padding:3px 11px;border-radius:12px;font-size:.82rem;font-weight:bold">⭐ ${s.score.toFixed(2)}${s.est?'*':''}</span>`:'';})()}
+      ${(()=>{const e=ELO[name]; return e?`<span title="דירוג ELO · שיא ${e.peak}" style="background:#0f172a;border:1px solid #334155;color:${e.rating>=1600?'#10b981':e.rating>=1500?'#3b82f6':'#f59e0b'};padding:3px 11px;border-radius:12px;font-size:.82rem;font-weight:bold">ELO ${e.rating}</span>`:'';})()}
       <button onclick="sharePlayer(${JSON.stringify(name)})" title="שתף כרטיס שחקן"
         style="margin-right:auto;background:#25D366;color:#0f172a;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:.75rem;font-weight:bold">💬 שתף</button>
     </div>
@@ -1604,10 +1636,6 @@ function profileBody(name, chartId) {
       ${sBox('בישולים', p.a, '#8b5cf6')}
       ${sBox('MVP',   b.mvp||'-', '#f59e0b')}
       ${sBox("שניצ'",  b.wg||'-',  '#10b981')}
-      ${(()=>{const e=ELO[name]; return e?sBox('דירוג ELO', e.rating+`<div style="font-size:.55rem;color:#64748b;font-weight:normal">שיא ${e.peak}</div>`, e.rating>=1600?'#10b981':e.rating>=1500?'#3b82f6':'#f59e0b'):'';})()}
-      ${(()=>{const f=eloForm(name); if(!f) return sBox('דירוג כוח (ציון)','-','#64748b');
-        const sc=Math.round(f.rating+(ATTACK_PTS[name]||0)+(DEFENSE_PTS[name]||0));
-        return sBox('דירוג כוח (ציון)', sc+`<div style="font-size:.55rem;color:#64748b;font-weight:normal">ELO+התקפה+הגנה</div>`, sc>=1600?'#10b981':sc>=1450?'#3b82f6':'#f59e0b');})()}
       ${sBox('שיא רצף ניצחונות', (sk&&sk.bestW) ? sk.bestW+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestWFrom, sk.bestWTo)}</div>` : '-', '#fb923c')}
       ${sBox('שיא ללא הפסד',     (sk&&sk.bestU) ? sk.bestU+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestUFrom, sk.bestUTo)}</div>` : '-', '#22d3ee')}
       ${sBox('שיא ללא ניצחון',   (sk&&sk.bestNW) ? sk.bestNW+`<div style="font-size:.58rem;color:#64748b;font-weight:normal">${streakRange(sk.bestNWFrom, sk.bestNWTo)}</div>` : '-', '#94a3b8')}
