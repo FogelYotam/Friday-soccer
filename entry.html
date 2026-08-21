@@ -217,17 +217,22 @@ function buildRatings(){
 }
 
 // ── Effective rating = manual base (player_ratings.json) + up to ±0.75 from ──
-//    recent form + ELO. Players with no manual base get one estimated from ELO.
-const MAX_ADJ = 0.75;
+//    RECENT FORM only. Form = recency-weighted sum of the player's per-game ELO
+//    changes over the last 12 months (each game × FORM_DECAY^months-ago, so recent
+//    games dominate). Absolute ELO level is ignored — the manual base captures it.
+//    Players with no manual base get one estimated from ELO. Must match gen_dashboard.py.
+const MAX_ADJ = 0.75, FORM_WINDOW_DAYS = 365, FORM_DECAY = 0.8, FORM_ADJ_SCALE = 0.5;
 function computeEffective(SER, gm){
-  const now=Date.now(), cut=now-6*30*_DAY, form={}, elo={};
-  Object.keys(gm).forEach(n=>{ const s=SER[n]; if(!s||!s.length) return; elo[n]=ELO[n];
-    const before=s.filter(x=>x.t<cut); const base=before.length?before[before.length-1].r:s[0].r; form[n]=ELO[n]-base; });
+  const now=Date.now(), cutoff=now-FORM_WINDOW_DAYS*_DAY, form={}, elo={};
+  const wForm=s=>{ if(!s||s.length<2) return 0; let wf=0;
+    for(let i=1;i<s.length;i++){ if(s[i].t<cutoff) continue;
+      const ma=(now-s[i].t)/(30*_DAY); wf+=(s[i].r-s[i-1].r)*Math.pow(FORM_DECAY,ma); } return wf; };
+  Object.keys(gm).forEach(n=>{ const s=SER[n]; if(!s||!s.length) return; elo[n]=ELO[n]; form[n]=wForm(s); });
   const zstat=arr=>{ if(!arr.length) return [0,1]; const m=arr.reduce((a,b)=>a+b,0)/arr.length;
     return [m, Math.sqrt(arr.reduce((a,b)=>a+(b-m)*(b-m),0)/arr.length)||1]; };
-  // normalise form & ELO over the manually-rated players (same basis as before)
+  // normalise form over the manually-rated players
   const rated=Object.keys(MANUAL_BASE).filter(n=>n in elo);
-  const [fm,fsd]=zstat(rated.map(n=>form[n]||0)), [em,esd]=zstat(rated.map(n=>elo[n]));
+  const [fm,fsd]=zstat(rated.map(n=>form[n]||0));
   // regression ELO→base, to estimate a base for players without a manual one
   let slope=0, icpt=3;
   if(rated.length>=3){ const xs=rated.map(n=>elo[n]), ys=rated.map(n=>MANUAL_BASE[n]);
@@ -241,8 +246,8 @@ function computeEffective(SER, gm){
     let base = hasBase ? MANUAL_BASE[n]
              : (n in elo ? Math.round(clamp(slope*elo[n]+icpt,0.75,5.25)*4)/4 : 3.0);
     let adj = 0;
-    if(n in elo){ const fz=(form[n]-fm)/fsd, ez=(elo[n]-em)/esd;
-      adj = Math.round(clamp((0.6*fz+0.4*ez)*0.5,-MAX_ADJ,MAX_ADJ)*100)/100; }
+    if(n in elo){ const fz=(form[n]-fm)/fsd;
+      adj = Math.round(clamp(fz*FORM_ADJ_SCALE,-MAX_ADJ,MAX_ADJ)*100)/100; }
     SCORE[n]=Math.round((base+adj)*100)/100;
     SCORE_META[n]={base, adj, estimated:!hasBase};
   });

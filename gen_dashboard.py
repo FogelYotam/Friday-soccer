@@ -808,32 +808,45 @@ function eloForm(name) {
           absence, daysSince, gm: recentGm, cur,
           decline: Math.round(decline), declineFactor, avgOpp};
 }
-// ── Effective 1–5 rating (manual base + ±0.75 form/ELO volatility) ────────────
+// ── Effective 1–5 rating (manual base + ±0.75 recent-form volatility) ─────────
 // Same model the team balancer (entry.html) uses, so the profile number matches
-// the number that decides the teams. base is the owner's manual 0.75–5.25 rating;
-// the ±0.75 swing reflects recent form (6-month ELO change) and current ELO.
+// the number that decides the teams. base is the owner's manual 0.75–5.25 rating.
+// The ±0.75 swing reflects ONLY recent form — a recency-weighted sum of the
+// player's per-game ELO changes over the last 12 months, each game weighted by
+// FORM_DECAY^(months-ago) so recent games dominate. It deliberately ignores a
+// player's absolute ELO level (that is what the manual base already captures).
 const MANUAL_BASE = RATINGS_PLACEHOLDER;
+const FORM_WINDOW_DAYS = 365, FORM_DECAY = 0.8, FORM_ADJ_SCALE = 0.5;
+function weightedForm(name) {
+  const s = ELO_SERIES[name]; if (!s || s.length < 2) return 0;
+  const now = Date.now(), cutoff = now - FORM_WINDOW_DAYS*_DAY;
+  let wf = 0;
+  for (let i = 1; i < s.length; i++) {
+    if (s[i].t < cutoff) continue;
+    const monthsAgo = (now - s[i].t) / (30*_DAY);
+    wf += (s[i].r - s[i-1].r) * Math.pow(FORM_DECAY, monthsAgo);
+  }
+  return wf;
+}
 const EFFECTIVE = (() => {
   const mean = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 0;
   const std  = (a,m) => Math.sqrt(mean(a.map(x=>(x-m)**2))) || 1;
-  const rows = Object.keys(MANUAL_BASE).filter(n => ELO[n]).map(n => {
-    const f = eloForm(n);
-    return {n, base: MANUAL_BASE[n], form: f?f.form:0, elo: (ELO[n]||{}).rating||1500};
-  });
-  const fm=mean(rows.map(r=>r.form)), fs=std(rows.map(r=>r.form),fm);
-  const em=mean(rows.map(r=>r.elo)),  es=std(rows.map(r=>r.elo),em);
-  const bm=mean(rows.map(r=>r.base));
+  const rows = Object.keys(MANUAL_BASE).filter(n => ELO[n]).map(n =>
+    ({n, base: MANUAL_BASE[n], wf: weightedForm(n), elo: (ELO[n]||{}).rating||1500}));
+  const fm=mean(rows.map(r=>r.wf)),  fs=std(rows.map(r=>r.wf),fm);
+  const em=mean(rows.map(r=>r.elo)), bm=mean(rows.map(r=>r.base));
+  // regress base on absolute ELO — only to seed a base for unrated guests
   let cov=0, vv=0;
   rows.forEach(r=>{cov+=(r.elo-em)*(r.base-bm); vv+=(r.elo-em)**2;});
   const slope = vv ? cov/vv : 0;
   const out = {};
   Object.keys(ELO).forEach(n => {
-    const f=eloForm(n), form=f?f.form:0, elo=(ELO[n]||{}).rating||1500;
+    const elo=(ELO[n]||{}).rating||1500;
     let base, est=false;
     if (MANUAL_BASE[n]!=null) base = MANUAL_BASE[n];
     else { base = Math.max(0.75, Math.min(5.25, Math.round((bm+slope*(elo-em))*4)/4)); est=true; }
-    const fz=(form-fm)/fs, ez=(elo-em)/es;
-    const adj = Math.max(-0.75, Math.min(0.75, (0.6*fz+0.4*ez)*0.5));
+    const fz=(weightedForm(n)-fm)/fs;
+    const adj = Math.max(-0.75, Math.min(0.75, fz*FORM_ADJ_SCALE));
     out[n] = {score: Math.round((base+adj)*100)/100, base, adj: Math.round(adj*100)/100, est};
   });
   return out;
