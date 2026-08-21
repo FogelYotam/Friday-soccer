@@ -169,7 +169,7 @@ function parseDate(d){
   const p=(d||'').split('/'); if(p.length!==3) return 0;
   return new Date(+p[2], +p[0]-1, +p[1]).getTime();
 }
-let ELO={}, ROLE={}, PAIR_LAST={}, LAST_GAME=null, SCORE={};
+let ELO={}, ROLE={}, PAIR_LAST={}, LAST_GAME=null, SCORE={}, SCORE_META={}, MANUAL_BASE={};
 const pairKey=(a,b)=> a<b ? a+'|'+b : b+'|'+a;
 // same power-model constants as the dashboard
 const _DAY=86400000, ELO_FORM_WINDOW_MONTHS=6, ELO_ABSENCE_PER_MONTH=10, ELO_ABSENCE_MAX=300,
@@ -212,44 +212,39 @@ function buildRatings(){
     if(gm[n]>=30 && (gl[n]/gm[n])<0.25 && (as[n]/gm[n])<0.25) ROLE[n]='שוער';
     else ROLE[n] = c>=med ? 'התקפה' : 'הגנה';
   });
-  computeScores(SER, gm);
+  computeEffective(SER, gm);
 }
 
-// ── Composite power score (same model as the dashboard's דירוג כוח) ──────────
-function computeScores(SER, gm){
-  const now=Date.now(), CUT=now-RECENT_YEARS*365*_DAY, roleOf=n=>ROLE[n]||'התקפה',
-        IS_DEF=n=>['הגנה','שוער'].includes(roleOf(n)), names=Object.keys(gm);
-  // recent goals/assists per game
-  const RA={};
-  gamesData.forEach(g=>{ if(parseDate(g.date)<CUT) return;
-    [...(g.teamA||[]),...(g.teamB||[])].forEach(p=>{ const n=norm(p.name); if(!n) return;
-      const a=RA[n]=RA[n]||{gm:0,g:0,a:0}; a.gm++; a.g+=p.goals||0; a.a+=p.assists||0; }); });
-  const attRaw=n=>{ const a=RA[n]; return (a&&a.gm)?(a.g*GOAL_W+a.a*ASSIST_W)/a.gm:null; };
-  // attack points: z within role × shrink × pos-mult × scale
-  const byRole={}; names.forEach(n=>{ const v=attRaw(n); if(v===null) return; (byRole[roleOf(n)]=byRole[roleOf(n)]||[]).push(v); });
-  const avg={}, sd={};
-  Object.keys(byRole).forEach(r=>{ const v=byRole[r], m=v.reduce((a,b)=>a+b,0)/v.length; avg[r]=m; sd[r]=Math.sqrt(v.reduce((a,b)=>a+(b-m)*(b-m),0)/v.length)||1; });
-  const ATT={};
-  names.forEach(n=>{ const v=attRaw(n); if(v===null){ATT[n]=0;return;} const r=roleOf(n);
-    const z=(v-avg[r])/sd[r], w=(RA[n]||{}).gm||0; ATT[n]=Math.round(z*(w/(w+ATT_SHRINK))*(ATT_POS_MULT[r]||1)*ATT_SCALE); });
-  // defence points: conceded vs. lineup-predicted, recent window
-  const tg=[]; let tc=0,ts=0,cn=0;
-  gamesData.forEach(g=>{ if(parseDate(g.date)<CUT) return;
-    const tA=(g.teamA||[]).filter(p=>p.name), tB=(g.teamB||[]).filter(p=>p.name); if(!tA.length||!tB.length) return;
-    const sA=g.scoreA??0,sB=g.scoreB??0;
-    [[tA,sB],[tB,sA]].forEach(([team,conc])=>{ const sh=team.filter(p=>IS_DEF(norm(p.name))).length/team.length; tg.push({team,conc,sh}); tc+=conc; ts+=sh; cn++; }); });
-  const DEF={};
-  if(cn){ const ac=tc/cn, ash=ts/cn, acc={};
-    tg.forEach(({team,conc,sh})=>{ const diff=ac*(1-0.6*(sh-ash))-conc, ah=Math.max(0,ash-sh), dh=Math.max(0,sh-ash);
-      team.forEach(p=>{ const n=norm(p.name), w=diff>=0?(1+ah*2):(IS_DEF(n)?1.5:1+dh*2); (acc[n]=acc[n]||{pts:0,gm:0}); acc[n].pts+=diff*w; acc[n].gm++; }); });
-    Object.keys(acc).forEach(n=>{ const a=acc[n]; DEF[n]=Math.round((a.pts/a.gm)*(a.gm/(a.gm+ATT_SHRINK))*DEF_SCALE); }); }
-  // form / absence → base rating, then compose
-  SCORE={};
-  names.forEach(n=>{ const s=SER[n]; if(!s||!s.length){ SCORE[n]=ELO[n]??1500; return; }
-    const cur=ELO[n], last=s[s.length-1].t, days=Math.round((now-last)/_DAY);
-    const tail=s.slice(-ELO_DECLINE_GAMES), decl=tail.length>1?Math.max(0,tail[0].r-tail[tail.length-1].r):0, df=1+Math.min(1,decl/150);
-    const months=Math.max(0,days/30-1), absence=Math.min(ELO_ABSENCE_MAX,Math.round(months*ELO_ABSENCE_PER_MONTH*df));
-    SCORE[n]=Math.round((cur-absence)+(ATT[n]||0)+(DEF[n]||0)); });
+// ── Effective rating = manual base (player_ratings.json) + up to ±0.75 from ──
+//    recent form + ELO. Players with no manual base get one estimated from ELO.
+const MAX_ADJ = 0.75;
+function computeEffective(SER, gm){
+  const now=Date.now(), cut=now-6*30*_DAY, form={}, elo={};
+  Object.keys(gm).forEach(n=>{ const s=SER[n]; if(!s||!s.length) return; elo[n]=ELO[n];
+    const before=s.filter(x=>x.t<cut); const base=before.length?before[before.length-1].r:s[0].r; form[n]=ELO[n]-base; });
+  const zstat=arr=>{ if(!arr.length) return [0,1]; const m=arr.reduce((a,b)=>a+b,0)/arr.length;
+    return [m, Math.sqrt(arr.reduce((a,b)=>a+(b-m)*(b-m),0)/arr.length)||1]; };
+  // normalise form & ELO over the manually-rated players (same basis as before)
+  const rated=Object.keys(MANUAL_BASE).filter(n=>n in elo);
+  const [fm,fsd]=zstat(rated.map(n=>form[n]||0)), [em,esd]=zstat(rated.map(n=>elo[n]));
+  // regression ELO→base, to estimate a base for players without a manual one
+  let slope=0, icpt=3;
+  if(rated.length>=3){ const xs=rated.map(n=>elo[n]), ys=rated.map(n=>MANUAL_BASE[n]);
+    const mx=xs.reduce((a,b)=>a+b,0)/xs.length, my=ys.reduce((a,b)=>a+b,0)/ys.length;
+    let num=0,den=0; xs.forEach((x,i)=>{num+=(x-mx)*(ys[i]-my);den+=(x-mx)*(x-mx);});
+    slope=den?num/den:0; icpt=my-slope*mx; }
+  const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+  SCORE={}; SCORE_META={};
+  new Set([...Object.keys(gm), ...Object.keys(MANUAL_BASE)]).forEach(n=>{
+    const hasBase = n in MANUAL_BASE;
+    let base = hasBase ? MANUAL_BASE[n]
+             : (n in elo ? Math.round(clamp(slope*elo[n]+icpt,0.75,5.25)*4)/4 : 3.0);
+    let adj = 0;
+    if(n in elo){ const fz=(form[n]-fm)/fsd, ez=(elo[n]-em)/esd;
+      adj = Math.round(clamp((0.6*fz+0.4*ez)*0.5,-MAX_ADJ,MAX_ADJ)*100)/100; }
+    SCORE[n]=Math.round((base+adj)*100)/100;
+    SCORE_META[n]={base, adj, estimated:!hasBase};
+  });
 }
 
 let roster=[];   // [{name, elo, role, known}]
@@ -260,7 +255,8 @@ function parseRoster(){
   names.forEach(n0=>{
     const n=norm(n0);
     if(seen.has(n)) return; seen.add(n);
-    roster.push({name:n, elo:ELO[n]??1500, score:SCORE[n]??(ELO[n]??1500), role:ROLE[n]||'התקפה', known:knownPlayers.has(n)});
+    const m=SCORE_META[n]||{};
+    roster.push({name:n, elo:ELO[n]??1500, score:SCORE[n]??3.0, base:m.base, adj:m.adj, est:!!m.estimated, role:ROLE[n]||'התקפה', known:knownPlayers.has(n)});
   });
   const el=document.getElementById('rosterStatus');
   if(roster.length<4){ el.innerHTML=`<div class="status st-err">צריך לפחות 4 שחקנים (זוהו ${roster.length})</div>`;
@@ -270,7 +266,7 @@ function parseRoster(){
   el.innerHTML=`<div class="status st-ok">זוהו ${roster.length} שחקנים</div>
     <div style="font-size:.8rem;color:#94a3b8;line-height:1.9;margin-top:6px">
     ${roster.map(p=>`<span style="display:inline-block;background:#0f172a;border:1px solid #334155;border-radius:12px;padding:2px 9px;margin:2px">
-      ${icon(p.role)} ${p.name} <b style="color:#fbbf24">${p.score}</b>${p.known?'':' <span style="color:#f59e0b">✦חדש</span>'}</span>`).join('')}</div>
+      ${icon(p.role)} ${p.name} <b style="color:#fbbf24" title="בסיס ${p.base??'?'}${p.adj?(p.adj>0?' +':' ')+p.adj:''}">${p.score}</b>${p.est?' <span style="color:#8b949e">~מוערך</span>':''}${p.known?'':' <span style="color:#f59e0b">✦חדש</span>'}</span>`).join('')}</div>
     ${newOnes.length?`<div style="font-size:.72rem;color:#f59e0b;margin-top:6px">✦ ${newOnes.length} שחקנים חדשים — קיבלו דירוג התחלתי 1500</div>`:''}`;
   document.getElementById('splitOpts').style.display='block';
   document.getElementById('splitResult').innerHTML='';
@@ -448,6 +444,7 @@ async function initApp(){
   document.getElementById('mainSection').style.display = 'block';
   setLS('st-load','⏳ טוען נתונים מ-GitHub...');
   try {
+    await loadManualBase();   // manual base ratings for the team balancer
     await loadGames();
     setLS('st-ok', `✓ ${gamesData.length} משחקים נטענו`);
     setDefaultDate();
@@ -464,6 +461,13 @@ function setLS(cls, msg){
 }
 
 // ─── LOAD ────────────────────────────────────────────────────
+async function loadManualBase(){
+  try {
+    const res = await fetch('player_ratings.json?cb='+Date.now());
+    if(res.ok) MANUAL_BASE = await res.json();
+  } catch(e){ MANUAL_BASE = {}; }   // no file → all ratings estimated from ELO
+}
+
 async function loadGames(){
   const res = await fetch(
     `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`,
