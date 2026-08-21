@@ -267,7 +267,7 @@ function parseRoster(){
   el.innerHTML=`<div class="status st-ok">זוהו ${roster.length} שחקנים</div>
     <div style="font-size:.8rem;color:#94a3b8;line-height:1.9;margin-top:6px">
     ${roster.map(p=>`<span style="display:inline-block;background:#0f172a;border:1px solid #334155;border-radius:12px;padding:2px 9px;margin:2px">
-      ${icon(p.role)} ${p.name} <b style="color:#fbbf24" title="בסיס ${p.base??'?'}${p.adj?(p.adj>0?' +':' ')+p.adj:''}">${p.score}</b>${p.est?' <span style="color:#8b949e">~מוערך</span>':''}${p.known?'':' <span style="color:#f59e0b">✦חדש</span>'}</span>`).join('')}</div>
+      ${icon(p.role)} ${p.name} <b style="color:#fbbf24" title="בסיס ${p.base??'?'}${p.adj?(p.adj>0?' +':' ')+p.adj:''}">${p.score>5?'5+':p.score}</b>${p.est?' <span style="color:#8b949e">~מוערך</span>':''}${p.known?'':' <span style="color:#f59e0b">✦חדש</span>'}</span>`).join('')}</div>
     ${newOnes.length?`<div style="font-size:.72rem;color:#f59e0b;margin-top:6px">✦ ${newOnes.length} שחקנים חדשים — קיבלו דירוג התחלתי 1500</div>`:''}`;
   document.getElementById('splitOpts').style.display='block';
   document.getElementById('splitResult').innerHTML='';
@@ -389,7 +389,7 @@ function showSplit(A,B,mode){
   const icon=r=>r==='שוער'?'🧤':r==='הגנה'?'🛡️':'⚔️';
   const col=t=>t.map(p=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #1e293b">
       <span>${icon(p.role)} ${p.name}</span>
-      <span><b style="color:#fbbf24">${p.score}</b> <span style="color:#475569;font-size:.72rem">ELO ${p.elo}</span></span></div>`).join('');
+      <span><b style="color:#fbbf24">${p.score>5?'5+':p.score}</b> <span style="color:#475569;font-size:.72rem">ELO ${p.elo}</span></span></div>`).join('');
   const avg=t=>Math.round(sumSc(t)/t.length);           // team average by score
   const fresh=Math.round(freshness(A,B));
   window._splitA=A; window._splitB=B;

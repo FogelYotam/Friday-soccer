@@ -1623,7 +1623,7 @@ function profileBody(name, chartId) {
       <span style="background:#0f172a;color:#94a3b8;padding:3px 10px;border-radius:12px;font-size:.78rem">${p.gm} משחקים</span>
       ${(()=>{const r=ROLE[name]; return r?`<span title="${r.why} · ${r2(r.c)} תרומה/משחק" style="background:#1e293b;border:1px solid #334155;color:#fbbf24;padding:3px 10px;border-radius:12px;font-size:.78rem">${r.icon} ${r.role}</span>`:'';})()}
       ${skBadge}
-      ${(()=>{const s=EFFECTIVE[name]; return s?`<span title="ציון לקביעת כוחות (בסיס ${s.base}${s.adj>=0?' +':' '}${s.adj} כושר/ELO)${s.est?' · מוערך':''}" style="background:#422006;border:1px solid #a16207;color:#fbbf24;padding:3px 11px;border-radius:12px;font-size:.82rem;font-weight:bold">⭐ ${s.score.toFixed(2)}${s.est?'*':''}</span>`:'';})()}
+      ${(()=>{const s=EFFECTIVE[name]; return s?`<span title="ציון לקביעת כוחות (בסיס ${s.base}${s.adj>=0?' +':' '}${s.adj} כושר/ELO)${s.est?' · מוערך':''}" style="background:#422006;border:1px solid #a16207;color:#fbbf24;padding:3px 11px;border-radius:12px;font-size:.82rem;font-weight:bold">⭐ ${s.score>5?'5+':s.score.toFixed(2)}${s.est?'*':''}</span>`:'';})()}
       ${(()=>{const e=ELO[name]; return e?`<span title="דירוג ELO · שיא ${e.peak}" style="background:#0f172a;border:1px solid #334155;color:${e.rating>=1600?'#10b981':e.rating>=1500?'#3b82f6':'#f59e0b'};padding:3px 11px;border-radius:12px;font-size:.82rem;font-weight:bold">ELO ${e.rating}</span>`:'';})()}
       <button onclick="sharePlayer(${JSON.stringify(name)})" title="שתף כרטיס שחקן"
         style="margin-right:auto;background:#25D366;color:#0f172a;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:.75rem;font-weight:bold">💬 שתף</button>
