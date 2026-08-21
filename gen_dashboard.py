@@ -1026,6 +1026,7 @@ const PCT_POOL = STATS.players.map(p => ({
   mvp:    (BONUS[p.name]||{}).mvp || 0,
   bestW:  (STREAKS[p.name]||{}).bestW || 0,
   elo:    (ELO[p.name]||{}).rating || 1500,
+  score:  (EFFECTIVE[p.name]||{}).score || 0,
 }));
 function pctRank(key, val) {
   const n = PCT_POOL.length;
@@ -1647,6 +1648,7 @@ function makeH2HRadar(a, b) {
     {l:'בישולים/מ',k:'apg',   v:p=>p.gm?p.a/p.gm:0},
     {l:'תרומה/מ', k:'cpg',    v:p=>p.gm?(p.g+p.a)/p.gm:0},
     {l:'MVP',     k:'mvp',    v:p=>(BONUS[p.name]||{}).mvp||0},
+    {l:'ציון',    k:'score',  v:p=>(EFFECTIVE[p.name]||{}).score||0},
     {l:'ELO',     k:'elo',    v:p=>(ELO[p.name]||{}).rating||1500},
     {l:'ותק',     k:'gm',     v:p=>p.gm},
   ];
