@@ -847,7 +847,11 @@ const EFFECTIVE = (() => {
     else { base = Math.max(0.75, Math.min(5.25, Math.round((bm+slope*(elo-em))*4)/4)); est=true; }
     const fz=(weightedForm(n)-fm)/fs;
     const adj = Math.max(-0.75, Math.min(0.75, fz*FORM_ADJ_SCALE));
-    out[n] = {score: Math.round((base+adj)*100)/100, base, adj: Math.round(adj*100)/100, est};
+    // absence penalty: hasn't played in over a year → −0.15
+    const s=ELO_SERIES[n];
+    const inactive = s && s.length ? (Date.now()-s[s.length-1].t) > FORM_WINDOW_DAYS*_DAY : false;
+    const pen = inactive ? 0.15 : 0;
+    out[n] = {score: Math.round((base+adj-pen)*100)/100, base, adj: Math.round(adj*100)/100, pen, est};
   });
   return out;
 })();

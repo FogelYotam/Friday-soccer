@@ -248,8 +248,12 @@ function computeEffective(SER, gm){
     let adj = 0;
     if(n in elo){ const fz=(form[n]-fm)/fsd;
       adj = Math.round(clamp(fz*FORM_ADJ_SCALE,-MAX_ADJ,MAX_ADJ)*100)/100; }
-    SCORE[n]=Math.round((base+adj)*100)/100;
-    SCORE_META[n]={base, adj, estimated:!hasBase};
+    // absence penalty: hasn't played in over a year → −0.15
+    const s=SER[n];
+    const inactive = s&&s.length ? (now-s[s.length-1].t) > FORM_WINDOW_DAYS*_DAY : false;
+    const pen = inactive ? 0.15 : 0;
+    SCORE[n]=Math.round((base+adj-pen)*100)/100;
+    SCORE_META[n]={base, adj, pen, estimated:!hasBase};
   });
 }
 
