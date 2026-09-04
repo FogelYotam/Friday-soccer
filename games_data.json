@@ -40056,5 +40056,79 @@
     "scoreA": 5,
     "scoreB": 8,
     "mvp": "טל"
+  },
+  {
+    "date": "9/4/2026",
+    "teamA": [
+      {
+        "name": "עידן",
+        "goals": 2,
+        "assists": 1
+      },
+      {
+        "name": "זליצקי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "זיו",
+        "goals": 0,
+        "assists": 1
+      },
+      {
+        "name": "רפי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "מוטי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "אייל",
+        "goals": 2,
+        "assists": 0
+      },
+      {
+        "name": "עצמי",
+        "goals": 1,
+        "assists": 0
+      }
+    ],
+    "teamB": [
+      {
+        "name": "טל",
+        "goals": 1,
+        "assists": 1
+      },
+      {
+        "name": "פוגל",
+        "goals": 0,
+        "assists": 1
+      },
+      {
+        "name": "ליאון",
+        "goals": 0,
+        "assists": 2
+      },
+      {
+        "name": "קצל",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "עודד",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "רותם",
+        "goals": 3,
+        "assists": 0
+      }
+    ],
+    "scoreA": 5,
+    "scoreB": 4
   }
 ]
