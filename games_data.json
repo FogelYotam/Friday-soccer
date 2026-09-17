@@ -3382,55 +3382,6 @@
     "scoreB": 4
   },
   {
-    "date": "3/22/2013",
-    "teamA": [
-      {
-        "name": "מוטי",
-        "goals": 1,
-        "assists": 1
-      },
-      {
-        "name": "אלי",
-        "goals": 3,
-        "assists": 4
-      },
-      {
-        "name": "קובי",
-        "goals": 9,
-        "assists": 2
-      },
-      {
-        "name": "און",
-        "goals": 1,
-        "assists": 0
-      }
-    ],
-    "teamB": [
-      {
-        "name": "זליצקי",
-        "goals": 0,
-        "assists": 0
-      },
-      {
-        "name": "אמנון",
-        "goals": 0,
-        "assists": 0
-      },
-      {
-        "name": "טל",
-        "goals": 3,
-        "assists": 1
-      },
-      {
-        "name": "רונן",
-        "goals": 1,
-        "assists": 0
-      }
-    ],
-    "scoreA": 14,
-    "scoreB": 4
-  },
-  {
     "date": "3/29/2013",
     "teamA": [
       {
