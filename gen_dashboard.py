@@ -1719,13 +1719,20 @@ function showSelectedGame() {
 function gameSummaryText(game) {
   const sA=game.scoreA??0, sB=game.scoreB??0;
   const res = sA>sB?'ניצחון קבוצה א׳' : sB>sA?'ניצחון קבוצה ב׳' : 'תיקו';
-  // roster lines with goals/assists next to each player, like the "last game" card
-  const teamLines = team => (team||[]).map(p => {
+  // own goals are logged as a "player" named עצמי / שער עצמי inside the team that gained the goal
+  const OG = new Set(['עצמי','שער עצמי']);
+  const isOG = p => OG.has((p.name||'').trim());
+  const ownGoals = team => (team||[]).filter(isOG).reduce((s,p)=>s+(p.goals||1),0);
+  // roster lines with goals/assists next to each player, like the "last game" card (own goals excluded)
+  const teamLines = team => (team||[]).filter(p=>!isOG(p)).map(p => {
     const bits=[]; if(p.goals) bits.push(`${p.goals}⚽`); if(p.assists) bits.push(`${p.assists}🅰️`);
     return `  ${p.name}${bits.length?' — '+bits.join(' '):''}`;
   }).join('\n');
+  const ogA=ownGoals(game.teamA), ogB=ownGoals(game.teamB);
   let t = `⚽ כדורגל שישי — ${game.date}\n`;
   t += `תוצאה: ${sA} : ${sB}  (${res})\n`;
+  if (ogA) t += `⚽ גול עצמי לטובת קבוצה א׳${ogA>1?` (${ogA})`:''}\n`;
+  if (ogB) t += `⚽ גול עצמי לטובת קבוצה ב׳${ogB>1?` (${ogB})`:''}\n`;
   if (game.mvp) t += `🏅 MVP: ${game.mvp}\n`;
   if (game.wg)  t += `🥅 שער ניצחון: ${game.wg}\n`;
   t += `\nקבוצה א׳ — ${sA}\n${teamLines(game.teamA)}\n`;
