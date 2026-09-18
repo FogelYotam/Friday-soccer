@@ -399,16 +399,16 @@ function showSplit(A,B,mode){
   const col=t=>t.map(p=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #1e293b">
       <span>${icon(p.role)} ${p.name}</span>
       <span><b style="color:#fbbf24">${p.score>5?'5+':p.score}</b> <span style="color:#475569;font-size:.72rem">ELO ${p.elo}</span></span></div>`).join('');
-  const avg=t=>Math.round(sumSc(t)/t.length);           // team average by score
+  const avg=t=>sumSc(t)/t.length;                       // team average by score (real, uncapped)
   const fresh=Math.round(freshness(A,B));
   window._splitA=A; window._splitB=B;
   document.getElementById('splitResult').innerHTML=`
-    <div style="font-size:.8rem;color:#64748b;margin-bottom:6px">${label} · פער ציון ${Math.abs(avg(A)-avg(B))} · טריות ${fresh} ימים</div>
+    <div style="font-size:.8rem;color:#64748b;margin-bottom:6px">${label} · פער ציון ${Math.abs(avg(A)-avg(B)).toFixed(2)} · טריות ${fresh} ימים</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div style="background:#0f172a;border-top:3px solid #3b82f6;border-radius:8px;padding:8px">
-        <div style="color:#3b82f6;font-weight:bold;font-size:.85rem;margin-bottom:4px">קבוצה א׳ · ציון ${avg(A)}</div>${col(A)}</div>
+        <div style="color:#3b82f6;font-weight:bold;font-size:.85rem;margin-bottom:4px">קבוצה א׳ · ציון ${avg(A).toFixed(2)}</div>${col(A)}</div>
       <div style="background:#0f172a;border-top:3px solid #ef4444;border-radius:8px;padding:8px">
-        <div style="color:#ef4444;font-weight:bold;font-size:.85rem;margin-bottom:4px">קבוצה ב׳ · ציון ${avg(B)}</div>${col(B)}</div>
+        <div style="color:#ef4444;font-weight:bold;font-size:.85rem;margin-bottom:4px">קבוצה ב׳ · ציון ${avg(B).toFixed(2)}</div>${col(B)}</div>
     </div>
     <button class="btn btn-green" onclick="applySplit()">✓ השתמש בהרכב הזה</button>`;
 }
