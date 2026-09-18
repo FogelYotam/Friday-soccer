@@ -40082,5 +40082,65 @@
     "scoreA": 5,
     "scoreB": 4,
     "wg": "עצמי"
+  },
+  {
+    "date": "9/18/2026",
+    "teamA": [
+      {
+        "name": "פוגל",
+        "goals": 1,
+        "assists": 0
+      },
+      {
+        "name": "טל",
+        "goals": 2,
+        "assists": 2
+      },
+      {
+        "name": "רמי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "אייל",
+        "goals": 1,
+        "assists": 0
+      },
+      {
+        "name": "עצמי",
+        "goals": 1,
+        "assists": 0
+      }
+    ],
+    "teamB": [
+      {
+        "name": "עידן",
+        "goals": 0,
+        "assists": 2
+      },
+      {
+        "name": "רפי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "יונתן",
+        "goals": 1,
+        "assists": 0
+      },
+      {
+        "name": "רותם",
+        "goals": 4,
+        "assists": 1
+      },
+      {
+        "name": "מוטי",
+        "goals": 0,
+        "assists": 0
+      }
+    ],
+    "scoreA": 5,
+    "scoreB": 5,
+    "mvp": "רותם"
   }
 ]
