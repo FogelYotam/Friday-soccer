@@ -40202,5 +40202,69 @@
     "scoreA": 6,
     "scoreB": 5,
     "mvp": "אייל"
+  },
+  {
+    "date": "10/2/2026",
+    "teamA": [
+      {
+        "name": "עידן",
+        "goals": 1,
+        "assists": 1
+      },
+      {
+        "name": "פוגל",
+        "goals": 2,
+        "assists": 0
+      },
+      {
+        "name": "ירון",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "אמיר",
+        "goals": 0,
+        "assists": 1
+      },
+      {
+        "name": "זיו",
+        "goals": 1,
+        "assists": 0
+      }
+    ],
+    "teamB": [
+      {
+        "name": "טל",
+        "goals": 0,
+        "assists": 2
+      },
+      {
+        "name": "אייל",
+        "goals": 1,
+        "assists": 0
+      },
+      {
+        "name": "רותם",
+        "goals": 1,
+        "assists": 1
+      },
+      {
+        "name": "זליצקי",
+        "goals": 0,
+        "assists": 1
+      },
+      {
+        "name": "אלון",
+        "goals": 1,
+        "assists": 0
+      },
+      {
+        "name": "עצמי",
+        "goals": 1,
+        "assists": 0
+      }
+    ],
+    "scoreA": 4,
+    "scoreB": 4
   }
 ]
