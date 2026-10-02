@@ -668,6 +668,34 @@ function updateAwards(sA,sB){
   if(pool.includes(prevW)) wg.value=prevW;
 }
 
+// ─── WHATSAPP SUMMARY (same format as the dashboard) ─────────
+function gameSummaryText(game){
+  const sA=game.scoreA??0, sB=game.scoreB??0;
+  const res=sA>sB?'ניצחון קבוצה א׳':sB>sA?'ניצחון קבוצה ב׳':'תיקו';
+  const teamLines=team=>{
+    const rows=[]; let og=0;
+    (team||[]).forEach(p=>{
+      if(OG_NAMES.has((p.name||'').trim())){ og+=p.goals||1; return; }
+      const bits=[]; if(p.goals) bits.push(`${p.goals}⚽`); if(p.assists) bits.push(`${p.assists}🅰️`);
+      rows.push(`  ${p.name}${bits.length?' — '+bits.join(' '):''}`);
+    });
+    if(og>0) rows.push(`  גול עצמי — ${og}⚽`);
+    return rows.join('\n');
+  };
+  let t=`⚽ כדורגל שישי — ${game.date}\n`;
+  t+=`תוצאה: ${sA} : ${sB}  (${res})\n`;
+  if(game.mvp) t+=`🏅 MVP: ${game.mvp}\n`;
+  if(game.wg)  t+=`🥅 שער ניצחון: ${game.wg}\n`;
+  t+=`\nקבוצה א׳ — ${sA}\n${teamLines(game.teamA)}\n`;
+  t+=`\nקבוצה ב׳ — ${sB}\n${teamLines(game.teamB)}\n`;
+  t+=`\n📊 הדשבורד המלא: fogelyotam.github.io/Friday-soccer`;
+  return t;
+}
+function shareSavedGame(){
+  if(!window._savedGame) return;
+  window.open('https://wa.me/?text='+encodeURIComponent(gameSummaryText(window._savedGame)),'_blank');
+}
+
 // ─── SAVE → GITHUB ───────────────────────────────────────────
 async function saveGame(){
   const dateVal=document.getElementById('gameDate').value;
@@ -713,10 +741,12 @@ async function saveGame(){
   try {
     await commitGitHub(gameDate, mode);
     const res=sA>sB?'ניצחון א׳':sB>sA?'ניצחון ב׳':'תיקו';
+    window._savedGame=game;
     statusEl.innerHTML=`<div class="status st-ok">
       ✅ ${mode==='update'?'עודכן':'נשמר'}! ${gameDate} — ${sA}:${sB} (${res})<br>
       🤖 האתר מתעדכן אוטומטית — תוך כ-2 דקות הדשבורד יהיה מעודכן.
-    </div>`;
+    </div>
+    <button class="btn" style="background:#25D366;color:#0f172a;font-weight:bold;margin-top:8px" onclick="shareSavedGame()">💬 שתף סיכום לווטסאפ</button>`;
     setLS('st-ok',`✓ ${gamesData.length} משחקים`);
     editIndex = gamesData.findIndex(g=>g.date===gameDate);  // stay in edit mode on this game
     document.getElementById('editBanner').style.display='block';
