@@ -1472,24 +1472,29 @@ function sharePlayer(name) {
 function renderGameCard(game) {
   const sA=game.scoreA??'?', sB=game.scoreB??'?';
   const winner=sA>sB?'A':sB>sA?'B':'X';
-  const teamRows = players => (players||[]).map(p => {
-    const g=p.goals||0, a=p.assists||0;
-    const chips=[];
-    if(g) chips.push(`<span class="chip chip-green">${g}⚽</span>`);
-    if(a) chips.push(`<span class="chip chip-blue">${a}🅰️</span>`);
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #1e293b">
-      <span>${pl(p.name)}</span><span>${chips.join(' ')}</span></div>`;
-  }).join('');
+  const teamRows = (players, og) => {
+    let rows = (players||[]).map(p => {
+      const g=p.goals||0, a=p.assists||0;
+      const chips=[];
+      if(g) chips.push(`<span class="chip chip-green">${g}⚽</span>`);
+      if(a) chips.push(`<span class="chip chip-blue">${a}🅰️</span>`);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #1e293b">
+        <span>${pl(p.name)}</span><span>${chips.join(' ')}</span></div>`;
+    }).join('');
+    if (og>0) rows += `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #1e293b">
+      <span style="color:#94a3b8">גול עצמי</span><span><span class="chip chip-green">${og}⚽</span></span></div>`;
+    return rows;
+  };
   const colA=winner==='A'?'#10b981':winner==='B'?'#ef4444':'#fbbf24';
   const colB=winner==='B'?'#10b981':winner==='A'?'#ef4444':'#fbbf24';
   return `<div class="grid2" style="gap:12px">
     <div class="card" style="border-top:3px solid ${colA}">
       <h3 style="color:${colA};text-align:center;margin-bottom:8px">קבוצה א׳ — ${sA}</h3>
-      ${teamRows(game.teamA)}
+      ${teamRows(game.teamA, game.ogA)}
     </div>
     <div class="card" style="border-top:3px solid ${colB}">
       <h3 style="color:${colB};text-align:center;margin-bottom:8px">קבוצה ב׳ — ${sB}</h3>
-      ${teamRows(game.teamB)}
+      ${teamRows(game.teamB, game.ogB)}
     </div>
   </div>
   ${game.mvp?`<div style="margin-top:10px;text-align:center"><span class="chip chip-orange">🏅 MVP: ${pl(game.mvp)}</span></div>`:''}
