@@ -237,6 +237,12 @@ def generate():
         games = json.load(f)
 
     for g in games:
+        # count own goals per team BEFORE they are filtered out, so the WhatsApp summary can
+        # show them without polluting ELO/stats (own-goal entries are dropped from the rosters)
+        def _own(team): return sum((p.get('goals') or 1)
+                                   for p in team if (p.get('name') or '').strip() in SKIP_NAMES)
+        g['ogA'] = _own(g.get('teamA', []))
+        g['ogB'] = _own(g.get('teamB', []))
         g['teamA'] = [p for p in g.get('teamA', []) if normalize(p.get('name',''))]
         g['teamB'] = [p for p in g.get('teamB', []) if normalize(p.get('name',''))]
         for p in g['teamA']: p['name'] = normalize(p['name'])
@@ -1724,20 +1730,22 @@ function showSelectedGame() {
 function gameSummaryText(game) {
   const sA=game.scoreA??0, sB=game.scoreB??0;
   const res = sA>sB?'ניצחון קבוצה א׳' : sB>sA?'ניצחון קבוצה ב׳' : 'תיקו';
-  // own goals are logged as a "player" named עצמי / שער עצמי inside the team that gained the goal —
-  // show them as a roster line like a scored goal, labelled "גול עצמי"
-  const OG = new Set(['עצמי','שער עצמי']);
-  const teamLines = team => (team||[]).map(p => {
-    if (OG.has((p.name||'').trim())) return `  גול עצמי — ${p.goals||1}⚽`;
-    const bits=[]; if(p.goals) bits.push(`${p.goals}⚽`); if(p.assists) bits.push(`${p.assists}🅰️`);
-    return `  ${p.name}${bits.length?' — '+bits.join(' '):''}`;
-  }).join('\n');
+  // own goals come pre-counted on game.ogA / game.ogB (their roster entries are stripped at build
+  // time so they don't pollute ELO/stats); show them as a roster line labelled "גול עצמי".
+  const teamLines = (team, og) => {
+    const rows = (team||[]).map(p => {
+      const bits=[]; if(p.goals) bits.push(`${p.goals}⚽`); if(p.assists) bits.push(`${p.assists}🅰️`);
+      return `  ${p.name}${bits.length?' — '+bits.join(' '):''}`;
+    });
+    if (og>0) rows.push(`  גול עצמי — ${og}⚽`);
+    return rows.join('\n');
+  };
   let t = `⚽ כדורגל שישי — ${game.date}\n`;
   t += `תוצאה: ${sA} : ${sB}  (${res})\n`;
   if (game.mvp) t += `🏅 MVP: ${game.mvp}\n`;
   if (game.wg)  t += `🥅 שער ניצחון: ${game.wg}\n`;
-  t += `\nקבוצה א׳ — ${sA}\n${teamLines(game.teamA)}\n`;
-  t += `\nקבוצה ב׳ — ${sB}\n${teamLines(game.teamB)}\n`;
+  t += `\nקבוצה א׳ — ${sA}\n${teamLines(game.teamA, game.ogA)}\n`;
+  t += `\nקבוצה ב׳ — ${sB}\n${teamLines(game.teamB, game.ogB)}\n`;
   t += `\n📊 הדשבורד המלא: fogelyotam.github.io/Friday-soccer`;
   return t;
 }
