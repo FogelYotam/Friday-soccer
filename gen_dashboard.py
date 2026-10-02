@@ -402,6 +402,11 @@ select:focus,input:focus{outline:none;border-color:#fbbf24}
 </style>
 </head>
 <body>
+<div id="inAppBanner" style="display:none;background:#78350f;color:#fde68a;padding:10px 14px;font-size:.84rem;line-height:1.6;border-bottom:1px solid #a16207">
+  📱 פתחת מתוך אפליקציה (וואטסאפ וכו׳) — ככה האתר <b>לא יזכור אותך</b> בין כניסות.
+  פתח ב-<b>Safari/Chrome</b> או <b>הוסף למסך הבית</b> כדי שיזכור.
+  <button onclick="try{sessionStorage.setItem('inapp_dismiss','1')}catch(e){};document.getElementById('inAppBanner').style.display='none'" style="float:left;background:none;border:1px solid #a16207;color:#fde68a;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:.78rem">הבנתי</button>
+</div>
 <h1>⚽ כדורגל שישי</h1>
 <div class="subtitle" id="mainSubtitle">טוען נתונים...</div>
 <nav>
@@ -2163,6 +2168,19 @@ buildElo();
 buildLastGame();
 calcH2H();
 initVisitor();
+// in-app browser (WhatsApp/Instagram/etc.) wipes localStorage between sessions → warn once
+(function(){
+  try{
+    const ua=navigator.userAgent||'';
+    const ios=/iPhone|iPad|iPod/.test(ua);
+    const inApp = /FBAN|FBAV|Instagram|Line\/|Twitter|WhatsApp|GSA\/|; wv\)/.test(ua)
+      || (ios && !/Safari/.test(ua) && !window.navigator.standalone);
+    const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+    if(inApp && !standalone && sessionStorage.getItem('inapp_dismiss')!=='1'){
+      document.getElementById('inAppBanner').style.display='block';
+    }
+  }catch(e){}
+})();
 </script>
 </body>
 </html>
