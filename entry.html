@@ -117,6 +117,19 @@ input:focus,select:focus{outline:none;border-color:#fbbf24}
     <div id="teamB"></div>
     <button class="add-btn" onclick="addRow('B')">+ הוסף שחקן</button>
 
+    <hr class="sep">
+    <label>⚽ שערים עצמיים (נזקפים לטובת הקבוצה)</label>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <div style="flex:1">
+        <div style="color:#3b82f6;font-size:.78rem;margin-bottom:3px">לטובת קבוצה א׳</div>
+        <input type="number" min="0" value="0" id="ogA" oninput="updateScore()" style="width:100%">
+      </div>
+      <div style="flex:1">
+        <div style="color:#ef4444;font-size:.78rem;margin-bottom:3px">לטובת קבוצה ב׳</div>
+        <input type="number" min="0" value="0" id="ogB" oninput="updateScore()" style="width:100%">
+      </div>
+    </div>
+
     <div class="score-box">
       <div class="score-big" id="scoreDisplay">0 – 0</div>
       <div class="score-lbl" id="scoreLbl">תיקו</div>
@@ -546,16 +559,20 @@ function loadGameIntoForm(idx){
   editIndex=idx;
   ['teamA','teamB'].forEach(id=>document.getElementById(id).innerHTML='');
   const fill=(t,team)=>{
+    let og=0, rows=0;
     (team||[]).forEach(p=>{
-      addRow(t);
+      if(OG_NAMES.has((p.name||'').trim())){ og+=p.goals||1; return; }
+      addRow(t); rows++;
       const row=document.querySelector(`#team${t} .player-row:last-child`);
       row.querySelector('.p-name').value=p.name||'';
       row.querySelector('.p-goals').value=p.goals||0;
       row.querySelector('.p-assists').value=p.assists||0;
       onName(row.querySelector('.p-name'));
     });
-    if(!(team||[]).length){ addRow(t); addRow(t); }
+    document.getElementById('og'+t).value=og;
+    if(!rows){ addRow(t); addRow(t); }
   };
+  document.getElementById('ogA').value=0; document.getElementById('ogB').value=0;
   fill('A',g.teamA); fill('B',g.teamB);
   updateScore();
   document.getElementById('mvpSelect').value=g.mvp||'';
@@ -570,6 +587,7 @@ function clearEdit(){
   editIndex=-1;
   document.getElementById('editBanner').style.display='none';
   document.getElementById('saveBtn').textContent='💾 שמור ופרסם';
+  document.getElementById('ogA').value=0; document.getElementById('ogB').value=0;
   initTeams(); updateScore();
   document.getElementById('mvpSelect').value='';
   document.getElementById('wgSelect').value='';
@@ -615,9 +633,11 @@ function onName(inp){
 }
 
 // ─── SCORE + AWARDS ──────────────────────────────────────────
+const OG_NAMES = new Set(['עצמי','שער עצמי']);
+function ownGoals(t){ return +document.getElementById('og'+t).value||0; }
 function updateScore(){
-  const sA=getTeam('A').reduce((s,p)=>s+p.goals,0);
-  const sB=getTeam('B').reduce((s,p)=>s+p.goals,0);
+  const sA=getTeam('A').reduce((s,p)=>s+p.goals,0)+ownGoals('A');
+  const sB=getTeam('B').reduce((s,p)=>s+p.goals,0)+ownGoals('B');
   const el=document.getElementById('scoreDisplay');
   const lb=document.getElementById('scoreLbl');
   el.textContent=`${sA} – ${sB}`;
@@ -650,6 +670,11 @@ async function saveGame(){
   const tA=getTeam('A'), tB=getTeam('B');
   if(tA.length<2){alert('קבוצה א׳ – לפחות 2 שחקנים');return;}
   if(tB.length<2){alert('קבוצה ב׳ – לפחות 2 שחקנים');return;}
+
+  // own goals → an "עצמי" entry on the team that gained them (keeps score = sum of goals)
+  const ogA=ownGoals('A'), ogB=ownGoals('B');
+  if(ogA>0) tA.push({name:'עצמי', goals:ogA, assists:0});
+  if(ogB>0) tB.push({name:'עצמי', goals:ogB, assists:0});
 
   const sA=tA.reduce((s,p)=>s+p.goals,0), sB=tB.reduce((s,p)=>s+p.goals,0);
   const gameDate=toGameDate(dateVal);
@@ -728,6 +753,7 @@ function resetForm(){
   editIndex=-1;
   document.getElementById('editBanner').style.display='none';
   document.getElementById('saveBtn').textContent='💾 שמור ופרסם';
+  document.getElementById('ogA').value=0; document.getElementById('ogB').value=0;
   initTeams(); setDefaultDate(); updateScore();
   document.getElementById('mvpSelect').value='';
   document.getElementById('wgSelect').value='';
