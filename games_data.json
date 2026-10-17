@@ -40347,5 +40347,75 @@
     "scoreA": 11,
     "scoreB": 6,
     "mvp": "פוגל"
+  },
+  {
+    "date": "10/16/2026",
+    "teamA": [
+      {
+        "name": "עידן",
+        "goals": 4,
+        "assists": 2
+      },
+      {
+        "name": "אייל",
+        "goals": 1,
+        "assists": 2
+      },
+      {
+        "name": "ינון",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "ירון",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "זיו",
+        "goals": 3,
+        "assists": 1
+      },
+      {
+        "name": "רמי",
+        "goals": 0,
+        "assists": 0
+      }
+    ],
+    "teamB": [
+      {
+        "name": "ליאון",
+        "goals": 1,
+        "assists": 0
+      },
+      {
+        "name": "אמיר",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "דן",
+        "goals": 2,
+        "assists": 0
+      },
+      {
+        "name": "רפי",
+        "goals": 1,
+        "assists": 1
+      },
+      {
+        "name": "אורן",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "חבר של אמיר",
+        "goals": 0,
+        "assists": 0
+      }
+    ],
+    "scoreA": 8,
+    "scoreB": 4,
+    "mvp": "עידן"
   }
 ]
