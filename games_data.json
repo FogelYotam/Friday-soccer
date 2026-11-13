@@ -40631,5 +40631,70 @@
     "scoreA": 8,
     "scoreB": 4,
     "mvp": "רפי"
+  },
+  {
+    "date": "11/13/2026",
+    "teamA": [
+      {
+        "name": "עידן",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "זליצקי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "זיו",
+        "goals": 1,
+        "assists": 0
+      },
+      {
+        "name": "אייל",
+        "goals": 1,
+        "assists": 0
+      },
+      {
+        "name": "רמי",
+        "goals": 0,
+        "assists": 1
+      }
+    ],
+    "teamB": [
+      {
+        "name": "פוגל",
+        "goals": 4,
+        "assists": 2
+      },
+      {
+        "name": "טל",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "דן",
+        "goals": 1,
+        "assists": 1
+      },
+      {
+        "name": "רותם",
+        "goals": 2,
+        "assists": 1
+      },
+      {
+        "name": "אורן",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "עודד",
+        "goals": 0,
+        "assists": 0
+      }
+    ],
+    "scoreA": 2,
+    "scoreB": 7,
+    "mvp": "פוגל"
   }
 ]
