@@ -40696,5 +40696,69 @@
     "scoreA": 2,
     "scoreB": 7,
     "mvp": "פוגל"
+  },
+  {
+    "date": "11/20/2026",
+    "teamA": [
+      {
+        "name": "עידן",
+        "goals": 2,
+        "assists": 0
+      },
+      {
+        "name": "חבר של אמיר",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "רפי",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "אייל",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "טל",
+        "goals": 1,
+        "assists": 1
+      }
+    ],
+    "teamB": [
+      {
+        "name": "רותם",
+        "goals": 2,
+        "assists": 0
+      },
+      {
+        "name": "פוגל",
+        "goals": 2,
+        "assists": 0
+      },
+      {
+        "name": "אמיר",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "ירון",
+        "goals": 0,
+        "assists": 0
+      },
+      {
+        "name": "אורן",
+        "goals": 0,
+        "assists": 1
+      },
+      {
+        "name": "רמי",
+        "goals": 0,
+        "assists": 1
+      }
+    ],
+    "scoreA": 3,
+    "scoreB": 4
   }
 ]
